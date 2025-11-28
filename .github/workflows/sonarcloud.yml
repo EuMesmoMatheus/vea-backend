@@ -32,22 +32,31 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          dotnet sonarscanner begin \
-            /k:"EuMesmoMatheus_vea-backend" \
-            /o:"eumesmomatheus" \
-            /n:"VEA Backend API" \
-            /d:sonar.token="${{ secrets.SONAR_TOKEN }}" \
-            /d:sonar.host.url="https://sonarcloud.io" \
+          # Base command sempre
+          CMD="dotnet sonarscanner begin \
+            /k:\"EuMesmoMatheus_vea-backend\" \
+            /o:\"eumesmomatheus\" \
+            /n:\"VEA Backend API\" \
+            /d:sonar.token=\"${{ secrets.SONAR_TOKEN }}\" \
+            /d:sonar.host.url=\"https://sonarcloud.io\" \
             /d:sonar.projectBaseDir=. \
             /d:sonar.sources=. \
-            /d:sonar.exclusions="**/bin/**,**/obj/**,**/*.g.cs,**/*Generated*.cs,**/Migrations/**" \
+            /d:sonar.exclusions=\"**/bin/**,**/obj/**,**/*.g.cs,**/*Generated*.cs,**/Migrations/**\" \
             /d:sonar.sourceEncoding=UTF-8 \
             /d:sonar.verbose=true \
             /d:sonar.scm.provider=git \
-            /d:sonar.dotnet.provideGeneratedSources=true \
-            /d:sonar.pullrequest.key=${{ github.event.pull_request.number }} \
-            /d:sonar.pullrequest.branch=${{ github.head_ref || github.ref_name }} \
-            /d:sonar.pullrequest.base=${{ github.base_ref }}
+            /d:sonar.dotnet.provideGeneratedSources=true"
+
+          # Só adiciona PR params se for pull_request event
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CMD="$CMD \
+              /d:sonar.pullrequest.key=${{ github.event.pull_request.number }} \
+              /d:sonar.pullrequest.branch=${{ github.head_ref }} \
+              /d:sonar.pullrequest.base=${{ github.base_ref }}"
+          fi
+
+          # Executa o comando
+          eval $CMD
 
       - name: Build com símbolos completos (resolve o problema de "não acessa o código")
         run: |
@@ -68,3 +77,8 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+
+      - name: Quality Gate Status (opcional - falha o build se Quality Gate reprovar)
+        if: always()
+        run: |
+          echo "Analysis finished. Check results at https://sonarcloud.io/dashboard?id=EuMesmoMatheus_vea-backend"
