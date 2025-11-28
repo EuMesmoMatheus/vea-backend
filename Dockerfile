@@ -2,34 +2,35 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
 WORKDIR /src
 
-# Só copia o que realmente precisa para o restore (cache)
+# 1. Copia apenas o(s) projeto(s) necessários para restore
 COPY VEA.API.csproj ./
+# Se tiver mais projetos que o principal referencia, copie também:
+# COPY ../OutroProjeto/OutroProjeto.csproj ../OutroProjeto/
+
+# Restore (aproveita cache)
 RUN dotnet restore VEA.API.csproj
 
-# Agora copia o resto do código-fonte
+# 2. Agora copia apenas o código-fonte necessário (sem .git, bin, obj, etc graças ao .dockerignore)
 COPY . ./
 
-# Publica a aplicação
+# Compila e publica
 RUN dotnet publish VEA.API.csproj -c Release -o /app/publish --no-restore
 
 # Etapa final (runtime)
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS final
 WORKDIR /app
 
-# Copia APENAS a pasta já publicada (nunca copia código-fonte, .git, secrets, etc)
+# Copia apenas o que foi publicado
 COPY --from=build /app/publish ./
 
-# Cria usuário não-root e ajusta permissões
+# Usuário não-root (boa prática, você já tem)
 RUN addgroup -g 1000 -S appgroup && \
     adduser -u 1000 -S -G appgroup appuser && \
     chown -R appuser:appgroup /app
 
-# Porta que o Railway espera
 EXPOSE 8080
 ENV ASPNETCORE_URLS=http://+:8080
 
-# Roda como usuário sem privilégios
 USER appuser
 
-# Start
 ENTRYPOINT ["dotnet", "VEA.API.dll"]
