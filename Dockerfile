@@ -15,7 +15,7 @@ RUN dotnet restore VEA.API.csproj
 # -------------------------------------------------
 COPY Program.cs ./
 COPY appsettings.json ./
-COPY appsettings.*.json ./          # pega appsettings.Development.json só se estiver fora do .dockerignore (mas você já bloqueou)
+COPY appsettings.Development.json ./         # pega appsettings.Development.json só se estiver fora do .dockerignore (mas você já bloqueou)
 
 # Pastas do seu projeto (adiciona ou remove conforme precisar)
 COPY Controllers ./Controllers/
