@@ -38,7 +38,7 @@ jobs:
         with:
           args: >
             -Dsonar.projectKey=EuMesmoMatheus_vea-backend
-            -Dsonar.organization=matheus-lofy
+            -Dsonar.organization=eumesmomatheus
             -Dsonar.projectName=vea-backend
             -Dsonar.sources=.
             -Dsonar.cs.opencover.reportsPaths=**/coverage/**/coverage.opencover.xml
