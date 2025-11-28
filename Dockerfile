@@ -1,17 +1,17 @@
-# Build
+# Build stage
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
-# Copia o .csproj da pasta correta
+# Copia o .csproj da subpasta
 COPY vea-backend/VeaBackend.csproj ./
 RUN dotnet restore VeaBackend.csproj
 
-# Copia o resto do código
+# Copia o resto do código da subpasta
 COPY vea-backend/ ./
 
 RUN dotnet publish VeaBackend.csproj -c Release -o /app/publish --no-restore
 
-# Runtime
+# Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 COPY --from=build /app/publish ./
