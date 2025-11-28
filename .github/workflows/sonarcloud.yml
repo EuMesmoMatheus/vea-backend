@@ -11,8 +11,10 @@ jobs:
   sonarcloud:
     name: SonarCloud Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -22,13 +24,17 @@ jobs:
         with:
           dotnet-version: 9.0.x
 
-      # 1. BEGIN — aqui o scanner cria .sonarqube na raiz correta
+      # Instala o scanner de forma garantida e já coloca no PATH
+      - name: Install SonarScanner .NET
+        uses: SonarSource/sonarcloud-github-action@v3.0.0
+
+      # BEGIN — agora o comando é dotnet-sonarscanner (hífen, não ponto)
       - name: SonarCloud Begin
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          dotnet sonarscanner begin \
+          dotnet-sonarscanner begin \
             /k:"EuMesmoMatheus_vea-backend" \
             /o:"eumesmomatheus" \
             /n:"VEA Backend API" \
@@ -37,10 +43,13 @@ jobs:
             /d:sonar.verbose=true \
             /d:sonar.scm.provider=git \
             /d:sonar.dotnet.provideGeneratedSources=true \
-            /d:sonar.exclusions="**/bin/**,**/obj/**,**/*Designer.cs,**/Migrations/**" \
-            $( [[ "${{ github.event_name }}" == "pull_request" ]] && echo "/d:sonar.pullrequest.key=${{ github.event.pull_request.number }} /d:sonar.pullrequest.branch=${{ github.head_ref }} /d:sonar.pullrequest.base=${{ github.base_ref }}" || echo "" )
+            /d:sonar.exclusions="**/bin/**,**/obj/**,**/*Designer.cs,**/Migrations/**,**/wwwroot/uploads/**" \
+            $( [[ "${{ github.event_name }}" == "pull_request" ]] && \
+               echo "/d:sonar.pullrequest.key=${{ github.event.pull_request.number }} \
+                     /d:sonar.pullrequest.branch=${{ github.head_ref }} \
+                     /d:sonar.pullrequest.base=${{ github.base_ref }}" || echo "" )
 
-      # 2. BUILD + ANALYSIS — o scanner faz TUDO aqui (build + coleta de PDBs + análise)
+      # BUILD — deixa o scanner controlar tudo (não usa dotnet build puro)
       - name: Build & Analyze with SonarScanner
         run: |
           dotnet build --no-incremental \
@@ -48,8 +57,11 @@ jobs:
             /p:DebugSymbols=true \
             /p:ContinuousIntegrationBuild=true
 
-      # 3. END — envia tudo pro SonarCloud
+      # END
       - name: SonarCloud End
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+        run: dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+
+      - name: Result
+        run: echo "Análise concluída! Veja em https://sonarcloud.io/dashboard?id=EuMesmoMatheus_vea-backend"
