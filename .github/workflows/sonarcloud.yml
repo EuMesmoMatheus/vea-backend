@@ -8,7 +8,6 @@ on:
 
 jobs:
   sonar:
-    name: SonarCloud Scan
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,23 +19,26 @@ jobs:
         with:
           dotnet-version: 9.0.x
 
-      - name: Restore dependencies
+      - name: Install SonarScanner .NET
+        run: dotnet tool install --global dotnet-sonarscanner
+
+      - name: Restore
         run: dotnet restore
 
       - name: Build
         run: dotnet build --no-restore -c Release
 
-      # Como ainda não tem testes, vamos rodar só o build + análise estática (já pega MUITA coisa boa)
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v3
+      - name: SonarScanner Begin
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: >
-            -Dsonar.projectKey=EuMesmoMatheus_vea-backend
-            -Dsonar.organization=eumesmomatheus
-            -Dsonar.sources=.
-            -Dsonar.host.url=https://sonarcloud.io
-            -Dsonar.exclusions=**/bin/**,**/obj/**,**/*.json,**/*Migrations/*,**/*Program.cs
-            -Dsonar.cs.file.suffixes=.cs
-            -Dsonar.cs.analyzer.projectOutPaths=.
+        run: |
+          dotnet-sonarscanner begin \
+            /k:"EuMesmoMatheus_vea-backend" \
+            /d:sonar.host.url="https://sonarcloud.io" \
+            /d:sonar.login="${{ secrets.SONAR_TOKEN }}" \
+            /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml
+
+      - name: SonarScanner End
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet-sonarscanner end /d:sonar.login="${{ secrets.SONAR_TOKEN }}"
