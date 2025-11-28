@@ -2,54 +2,38 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
 WORKDIR /src
 
-# -------------------------------------------------
-# 1. Restore (máximo cache)
-# -------------------------------------------------
+# 1. Restore (cache máximo)
 COPY VEA.API.csproj ./
 RUN dotnet restore VEA.API.csproj
 
-# -------------------------------------------------
-# 2. Copia explicitamente só o que precisa
-#     → Sonar entende que é controlado e para de reclamar
-#     → .dockerignore continua protegendo contra .git, secrets, bin/obj, etc.
-# -------------------------------------------------
+# 2. Copia só o necessário (Sonar fica feliz e imagem fica leve)
 COPY Program.cs ./
-COPY appsettings.json ./
-
-# Pastas do seu projeto (adiciona ou remove conforme precisar)
+COPY appsettings*.json ./
 COPY Controllers ./Controllers/
 COPY Models ./Models/
 COPY Services ./Services/
 COPY wwwroot ./wwwroot/
-# Se no futuro criar mais pastas (ex: Data, Helpers, Extensions, Properties, etc.)
-# COPY Data ./Data/
-# COPY Properties ./Properties/
 
-# -------------------------------------------------
-# 3. Publica a aplicação
-# -------------------------------------------------
+# 3. Build & Publish
 RUN dotnet publish VEA.API.csproj -c Release -o /app/publish --no-restore
 
-# -------------------------------------------------
-# Etapa final (runtime) – imagem mínima e segura
-# -------------------------------------------------
+# Etapa final - runtime leve e segura
 FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS final
 WORKDIR /app
 
-# Copia apenas o que foi publicado (nunca código-fonte nem arquivos sensíveis)
+# Copia só o que foi publicado
 COPY --from=build /app/publish ./
 
-# Cria usuário não-root (você já tinha, só deixei mais enxuto)
+# Cria usuário não-root
 RUN addgroup -g 1000 -S appgroup && \
     adduser -u 1000 -S -G appgroup appuser && \
     chown -R appuser:appgroup /app
 
-# Porta que o Railway (e outros) espera
+# Railway usa a variável PORT dinamicamente
 EXPOSE 8080
-ENV ASPNETCORE_URLS=http://+:8080
+ENV ASPNETCORE_URLS=http://+:${PORT:-8080}
 
-# Roda sem privilégios
+# Roda sem root
 USER appuser
 
-# Start
 ENTRYPOINT ["dotnet", "VEA.API.dll"]
