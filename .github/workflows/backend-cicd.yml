@@ -37,7 +37,7 @@ jobs:
           SONAR_HOST_URL: https://sonarcloud.io
         with:
           args: >
-            -Dsonar.projectKey=eumesmomatheus_vea-backend
+            -Dsonar.projectKey=EuMesmoMatheus_vea-backend
             -Dsonar.organization=matheus-lofy
             -Dsonar.projectName=vea-backend
             -Dsonar.sources=.
