@@ -22,8 +22,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Config de config
 //builder.Configuration
-//    .SetBasePath(AppContext.BaseDirectory)
-//    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+// .SetBasePath(AppContext.BaseDirectory)
+// .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
 
 // Serviços
 builder.Services.AddControllers()
@@ -31,7 +31,6 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     });
-
 builder.Services.AddScoped<ServiceService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 
@@ -39,7 +38,6 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 if (string.IsNullOrEmpty(connectionString))
     throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString))
@@ -103,24 +101,21 @@ builder.Services.AddSwaggerGen(c =>
             new OpenApiSecurityScheme
             {
                 Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            Array.Empty<string>()
-        }
-    });
+            {
+                Type = ReferenceType.SecurityScheme,
+                Id = "Bearer"
+            }
+        },
+        Array.Empty<string>()
+    }
 });
-
+});
 var app = builder.Build();
 
-// Pipeline — ORDEM CORRETA (ESSA É A CHAVE!)
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "VEA API v1"));
-}
+// AQUI ESTÁ A ÚNICA MUDANÇA QUE IMPORTA
+// Removi o if (IsDevelopment() → Swagger agora funciona na nuvem também
+app.UseSwagger();
+app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "VEA API v1"));
 
 app.UseExceptionHandler(errorApp =>
 {
@@ -136,8 +131,8 @@ app.UseExceptionHandler(errorApp =>
 
 // ORDEM CERTA: CORS → AUTH → AUTHORIZATION → STATICFILES
 app.UseCors("AllowAngular");
-app.UseAuthentication();           // Primeiro verifica o token
-app.UseAuthorization();            // Depois aplica as regras de permissão
+app.UseAuthentication(); // Primeiro verifica o token
+app.UseAuthorization(); // Depois aplica as regras de permissão
 
 // AQUI LIBERA AS IMAGENS PRA TODO MUNDO (clientes, admin, etc)
 app.UseStaticFiles(new StaticFileOptions
