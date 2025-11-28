@@ -17,21 +17,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # obrigatório para blame e PR decoration
+          fetch-depth: 0
 
       - name: Setup .NET 9.0
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 9.0.x
 
-      # Versão mais nova e estável (evita bug conhecido do 7.1 com .NET 9)
       - name: Install SonarScanner .NET
         run: dotnet tool install --global dotnet-sonarscanner --version 8.0.1
 
-      - name: Restore dependencies
+      - name: Restore
         run: dotnet restore
 
-      - name: SonarCloud Begin
+      - name: Sonar Begin
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -42,16 +41,12 @@ jobs:
             /n:"VEA Backend API" \
             /d:sonar.token="${SONAR_TOKEN}" \
             /d:sonar.host.url="https://sonarcloud.io" \
-            /d:sonar.exclusions="**/bin/**,**/obj/**,**/*.g.cs,**/*Generated*.cs,**/Migrations/**,wwwroot/uploads/**" \
-            /d:sonar.cs.vscoveragexml.reportsPaths=coverage/*.xml \
+            /d:sonar.scanner.scanAll=false \
+            /d:sonar.exclusions="**/bin/**,**/obj/**,**/*.g.cs,**/*Generated*.cs,**/Migrations/**,wwwroot/**" \
             /d:sonar.verbose=true \
-            /d:sonar.scm.provider=git \
-            $( [[ "${{ github.event_name }}" == "pull_request" ]] && \
-               echo "/d:sonar.pullrequest.key=${{ github.event.pull_request.number }} \
-                     /d:sonar.pullrequest.branch=${{ github.head_ref }} \
-                     /d:sonar.pullrequest.base=${{ github.base_ref }}" )
+            $([[ "${{ github.event_name }}" == "pull_request" ]] && echo "/d:sonar.pullrequest.key=${{ github.event.pull_request.number }} /d:sonar.pullrequest.branch=${{ github.head_ref }} /d:sonar.pullrequest.base=${{ github.base_ref }}")
 
-      - name: Build com debug symbols (necessário pro Sonar)
+      - name: Build
         run: |
           dotnet build VEA.API.csproj \
             --configuration Release \
@@ -59,18 +54,11 @@ jobs:
             /p:DebugSymbols=true \
             /p:ContinuousIntegrationBuild=true
 
-      # Opcional: se quiser coverage de verdade no futuro, troca por coverlet + reportgenerator
-      - name: Create dummy coverage (remove warning temporário)
-        run: |
-          mkdir -p coverage
-          echo '<?xml version="1.0"?><coverage/>' > coverage/dummy.xml
-
-      - name: SonarCloud End
+      - name: Sonar End
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: dotnet sonarscanner end /d:sonar.token="${SONAR_TOKEN}"
 
-      - name: Quality Gate Result
+      - name: Resultado
         if: always()
-        run: |
-          echo "Análise concluída! Veja os resultados em: https://sonarcloud.io/dashboard?id=EuMesmoMatheus_vea-backend"
+        run: echo "Análise concluída → https://sonarcloud.io/dashboard?id=EuMesmoMatheus_vea-backend"
