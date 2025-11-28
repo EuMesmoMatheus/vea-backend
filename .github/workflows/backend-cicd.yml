@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  build-test-sonar:
+  build-and-analyze:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,24 +19,34 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
-      - name: Restore & Build
+      # ← ESSA É A MÁGICA QUE FAZ O SONAR LER C# DE VERDADE →
+      - name: Install SonarScanner .NET
+        run: dotnet tool install --global dotnet-sonarscanner --version 6.2.0
+
+      - name: SonarScanner Begin
         run: |
-          dotnet restore
-          dotnet build --no-restore -c Release
+          dotnet sonarscanner begin \
+            /k:"EuMesmoMatheus_vea-backend" \
+            /o:"eumesmomatheus" \
+            /d:sonar.host.url="https://sonarcloud.io" \
+            /d:sonar.token="${{ secrets.SONAR_TOKEN }}" \
+            /d:sonar.cs.opencover.reportsPaths="**/coverage/**/coverage.opencover.xml" \
+            /d:sonar.qualitygate.wait=true
+
+      - name: Restore & Build
+        run: dotnet build --no-restore -c Release
 
       - name: Test com cobertura
         run: dotnet test --no-build -c Release --collect:"XPlat Code Coverage" || true
 
-      # ← AQUI É O QUE RESOLVE O SONAR 100% →
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v3
+      - name: SonarScanner End
+        run: dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+
+      # Deploy Railway (opcional, pode deixar)
+      - name: Deploy Railway
+        if: github.ref == 'refs/heads/main'
+        run: |
+          npm install -g @railway/cli
+          railway up --service vea-backend
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: >
-            -Dsonar.projectKey=EuMesmoMatheus_vea-backend
-            -Dsonar.organization=eumesmomatheus
-            -Dsonar.sources=.
-            -Dsonar.cs.vstest.reportsPaths=**/*.trx
-            -Dsonar.cs.opencover.reportsPaths=**/coverage/**/coverage.opencover.xml
-            -Dsonar.qualitygate.wait=true
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
