@@ -1,0 +1,45 @@
+name: Backend CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-test-sonar-deploy:
+    runs-on: ubuntu-latest
+    env:
+      WORKING_DIRECTORY: .
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore & Build
+        run: |
+          dotnet restore
+          dotnet build --no-restore -c Release
+
+      - name: Test com cobertura
+        run: dotnet test --no-build -c Release --collect:"XPlat Code Coverage"
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      - name: Deploy no Railway
+        if: github.ref == 'refs/heads/main'
+        run: |
+          npm install -g @railway/cli
+          railway up --service vea-backend
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
