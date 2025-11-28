@@ -1,0 +1,42 @@
+name: SonarCloud
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    types: [ opened, synchronize, reopened ]
+
+jobs:
+  sonar:
+    name: SonarCloud Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore -c Release
+
+      # Como ainda não tem testes, vamos rodar só o build + análise estática (já pega MUITA coisa boa)
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v3
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=EuMesmoMatheus_vea-backend
+            -Dsonar.organization=seu-org-ou-default
+            -Dsonar.sources=.
+            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.exclusions=**/bin/**,**/obj/**,**/*.json,**/*Migrations/*,**/*Program.cs
+            -Dsonar.cs.file.suffixes=.cs
+            -Dsonar.cs.analyzer.projectOutPaths=.

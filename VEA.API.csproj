@@ -30,6 +30,10 @@
     <Folder Include="Migrations\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include=".github\workflows\sonarcloud.yml" />
+  </ItemGroup>
+
   <!-- Adicione esta seção para copiar appsettings.json -->
   <ItemGroup>
     <None Update="appsettings.json">
