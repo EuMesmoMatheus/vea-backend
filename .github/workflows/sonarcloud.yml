@@ -30,18 +30,19 @@ jobs:
       - name: Restore
         run: dotnet restore
 
-      # Aqui a mágica: definimos as variáveis usando apenas set-env (sem ${{ }} no run)
-      - name: Prepare Sonar pull request parameters
+      # Solução segura e oficial (sem warning de "user-controlled data")
+      - name: Define Sonar PR parameters (safe way)
+        id: sonar_params
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "SONAR_PR_KEY=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
-            echo "SONAR_PR_BRANCH=${{ github.head_ref }}" >> $GITHUB_ENV
-            echo "SONAR_PR_BASE=${{ github.base_ref }}" >> $GITHUB_ENV
-          else
-            echo "SONAR_PR_KEY=" >> $GITHUB_ENV
-            echo "SONAR_PR_BRANCH=" >> $GITHUB_ENV
-            echo "SONAR_PR_BASE=" >> $GITHUB_ENV
-          fi
+          echo "pr_key=${{ github.event.pull_request.number || '' }}" >> $GITHUB_OUTPUT
+          echo "pr_branch=${{ github.head_ref || '' }}" >> $GITHUB_OUTPUT
+          echo "pr_base=${{ github.base_ref || '' }}" >> $GITHUB_OUTPUT
+
+      - name: Export Sonar PR variables to environment
+        run: |
+          echo "SONAR_PR_KEY=${{ steps.sonar_params.outputs.pr_key }}" >> $GITHUB_ENV
+          echo "SONAR_PR_BRANCH=${{ steps.sonar_params.outputs.pr_branch }}" >> $GITHUB_ENV
+          echo "SONAR_PR_BASE=${{ steps.sonar_params.outputs.pr_base }}" >> $GITHUB_ENV
 
       - name: Sonar Begin
         env:
@@ -64,7 +65,7 @@ jobs:
             cmd="$cmd /d:sonar.pullrequest.base=${SONAR_PR_BASE}"
           fi
 
-          echo "$cmd"
+          echo "Executando: $cmd"
           eval "$cmd"
 
       - name: Build
@@ -82,4 +83,6 @@ jobs:
 
       - name: Resultado
         if: always()
-        run: echo "Análise concluída → https://sonarcloud.io/dashboard?id=EuMesmoMatheus_vea-backend"
+        run: |
+          echo "Análise concluída com sucesso!"
+          echo "Dashboard → https://sonarcloud.io/dashboard?id=EuMesmoMatheus_vea-backend"
