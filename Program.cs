@@ -1,4 +1,4 @@
-// Primeiro deploy com CI/CD, SonarCloud e Railway - 28/11/2025
+// CI/CD + SonarCloud + Railway ativado – 28/11/2025
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
