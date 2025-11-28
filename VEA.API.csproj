@@ -6,6 +6,7 @@
     <RootNamespace>VEA.API</RootNamespace>
     <Nullable>enable</Nullable>
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <UserSecretsId>4d4d4ba7-9d84-41e2-a68b-0705b0b961c7</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
