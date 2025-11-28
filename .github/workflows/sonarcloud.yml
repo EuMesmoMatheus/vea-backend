@@ -11,76 +11,45 @@ jobs:
   sonarcloud:
     name: SonarCloud Scan
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # obrigatório pro SonarCloud funcionar direito em PRs
+          fetch-depth: 0
 
       - name: Setup .NET 9.0
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 9.0.x
 
-      - name: Install SonarScanner .NET (v7+)
-        run: dotnet tool install --global dotnet-sonarscanner --version 7.1.0
-
+      # 1. BEGIN — aqui o scanner cria .sonarqube na raiz correta
       - name: SonarCloud Begin
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Base command sempre
-          CMD="dotnet sonarscanner begin \
-            /k:\"EuMesmoMatheus_vea-backend\" \
-            /o:\"eumesmomatheus\" \
-            /n:\"VEA Backend API\" \
-            /d:sonar.token=\"${{ secrets.SONAR_TOKEN }}\" \
-            /d:sonar.host.url=\"https://sonarcloud.io\" \
-            /d:sonar.projectBaseDir=. \
-            /d:sonar.sources=. \
-            /d:sonar.exclusions=\"**/bin/**,**/obj/**,**/*.g.cs,**/*Generated*.cs,**/Migrations/**\" \
-            /d:sonar.sourceEncoding=UTF-8 \
+          dotnet sonarscanner begin \
+            /k:"EuMesmoMatheus_vea-backend" \
+            /o:"eumesmomatheus" \
+            /n:"VEA Backend API" \
+            /d:sonar.token="${{ secrets.SONAR_TOKEN }}" \
+            /d:sonar.host.url="https://sonarcloud.io" \
             /d:sonar.verbose=true \
             /d:sonar.scm.provider=git \
-            /d:sonar.dotnet.provideGeneratedSources=true"
+            /d:sonar.dotnet.provideGeneratedSources=true \
+            /d:sonar.exclusions="**/bin/**,**/obj/**,**/*Designer.cs,**/Migrations/**" \
+            $( [[ "${{ github.event_name }}" == "pull_request" ]] && echo "/d:sonar.pullrequest.key=${{ github.event.pull_request.number }} /d:sonar.pullrequest.branch=${{ github.head_ref }} /d:sonar.pullrequest.base=${{ github.base_ref }}" || echo "" )
 
-          # Só adiciona PR params se for pull_request event
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            CMD="$CMD \
-              /d:sonar.pullrequest.key=${{ github.event.pull_request.number }} \
-              /d:sonar.pullrequest.branch=${{ github.head_ref }} \
-              /d:sonar.pullrequest.base=${{ github.base_ref }}"
-          fi
-
-          # Executa o comando
-          eval $CMD
-
-      - name: Build com símbolos completos (resolve o problema de "não acessa o código")
+      # 2. BUILD + ANALYSIS — o scanner faz TUDO aqui (build + coleta de PDBs + análise)
+      - name: Build & Analyze with SonarScanner
         run: |
-          dotnet build VEA.API.csproj \
-            --configuration Release \
+          dotnet build --no-incremental \
             /p:DebugType=full \
             /p:DebugSymbols=true \
-            /p:EmitCompilerGeneratedFiles=true \
             /p:ContinuousIntegrationBuild=true
 
-      - name: Gerar coverage vazio (evita warning de coverage ausente)
-        run: |
-          mkdir -p coverage
-          echo '<?xml version="1.0" encoding="utf-8"?><coverage line-rate="0" branch-rate="0" lines-covered="0" lines-valid="0" branches-covered="0" branches-valid="0" timestamp="0" version="1.9"><sources/><packages/></coverage>' > coverage/coverage.opencover.xml
-
+      # 3. END — envia tudo pro SonarCloud
       - name: SonarCloud End
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
-
-      - name: Quality Gate Status (opcional - falha o build se Quality Gate reprovar)
-        if: always()
-        run: |
-          echo "Analysis finished. Check results at https://sonarcloud.io/dashboard?id=EuMesmoMatheus_vea-backend"
-
-     #bla
+        run: dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
