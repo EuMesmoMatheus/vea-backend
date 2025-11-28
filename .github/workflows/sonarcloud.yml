@@ -7,7 +7,7 @@ on:
     types: [ opened, synchronize, reopened ]
 
 jobs:
-  sonar:
+  sonarcloud:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,14 +19,17 @@ jobs:
         with:
           dotnet-version: 9.0.x
 
-      - name: Install SonarScanner .NET
-        run: dotnet tool install --global dotnet-sonarscanner --version 6.2.0
+      # Essa é a mágica: força o scanner mais novo que já entende .NET 9
+      - name: Install SonarScanner .NET (latest)
+        run: dotnet tool install --global dotnet-sonarscanner --version 7.0.0-preview.1
 
-      - name: Restore & Build
-        run: |
-          dotnet restore
-          dotnet build --no-restore -c Release
+      - name: Restore
+        run: dotnet restore
 
+      - name: Build (gera os arquivos que o scanner precisa)
+        run: dotnet build --configuration Release --no-restore
+
+      # BEGIN – parâmetros corretos e obrigatórios
       - name: Sonar Begin
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -35,8 +38,15 @@ jobs:
             /k:EuMesmoMatheus_vea-backend \
             /o:eumesmomatheus \
             /d:sonar.login=${{ secrets.SONAR_TOKEN }} \
-            /d:sonar.host.url=https://sonarcloud.io
+            /d:sonar.host.url="https://sonarcloud.io" \
+            /d:sonar.cs.vstest.reportsPaths="**/*.trx" \
+            /d:sonar.cs.opencover.reportsPaths="**/*.xml"
 
+      # Esse segundo build é obrigatório pro scanner .NET capturar tudo
+      - name: Rebuild for analysis
+        run: dotnet build --configuration Release --no-restore
+
+      # END
       - name: Sonar End
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
