@@ -1,4 +1,4 @@
-name: SonarCloud
+﻿name: SonarCloud
 
 on:
   push:
@@ -20,7 +20,7 @@ jobs:
           dotnet-version: 9.0.x
 
       - name: Install SonarScanner .NET
-        run: dotnet tool install --global dotnet-sonarscanner
+        run: dotnet tool install --global dotnet-sonarscanner --version 6.2.0
 
       - name: Restore
         run: dotnet restore
@@ -34,9 +34,9 @@ jobs:
         run: |
           dotnet-sonarscanner begin \
             /k:"EuMesmoMatheus_vea-backend" \
+            /o:"eumesmomatheus" \           
             /d:sonar.host.url="https://sonarcloud.io" \
-            /d:sonar.login="${{ secrets.SONAR_TOKEN }}" \
-            /d:sonar.cs.vscoveragexml.reportsPaths=coverage.xml
+            /d:sonar.login="${{ secrets.SONAR_TOKEN }}"
 
       - name: SonarScanner End
         env:
