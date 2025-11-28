@@ -17,41 +17,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # obrigatório pra blame e PR decoration
+          fetch-depth: 0
 
       - name: Setup .NET 9.0
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 9.0.x
 
-      - name: Install SonarScanner .NET
-        run: dotnet tool install --global dotnet-sonarscanner --version 8.0.1
-
       - name: Restore dependencies
         run: dotnet restore
 
-      - name: Sonar Begin
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Variáveis seguras (elimina o S5131)
-          EVENT_NAME: ${{ github.event_name }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_REF: ${{ github.head_ref }}
-          BASE_REF: ${{ github.base_ref }}
-        run: |
-          dotnet sonarscanner begin \
-            /k:"EuMesmoMatheus_vea-backend" \
-            /o:"e رسmomatheus" \
-            /n:"VEA Backend API" \
-            /d:sonar.token="${SONAR_TOKEN}" \
-            /d:sonar.host.url="https://sonarcloud.io" \
-            /d:sonar.scanner.scanAll=false \
-            /d:sonar.exclusions="**/bin/**,**/obj/**,**/*.g.cs,**/*Generated*.cs,**/Migrations/**,wwwroot/**" \
-            /d:sonar.verbose=true \
-            $([[ "$EVENT_NAME" == "pull_request" ]] && echo "/d:sonar.pullrequest.key=$PR_NUMBER /d:sonar.pullrequest.branch=$HEAD_REF /d:sonar.pullrequest.base=$BASE_REF")
-
-      - name: Build (com símbolos pro Sonar)
+      - name: Build (com símbolos de debug para cobertura)
         run: |
           dotnet build VEA.API.csproj \
             --configuration Release \
@@ -59,13 +35,21 @@ jobs:
             /p:DebugSymbols=true \
             /p:ContinuousIntegrationBuild=true
 
-      - name: Sonar End
+      # ←←← AQUI ESTÁ A MÁGICA (action oficial do SonarCloud) ←←←
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Necessário para decoração de PR
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: dotnet sonarscanner end /d:sonar.token="${SONAR_TOKEN}"
+        with:
+          args: >
+            -Dsonar.projectKey=EuMesmoMatheus_vea-backend
+            -Dsonar.organization=eumesmomatheus
+            -Dsonar.projectName=VEA Backend API
+            -Dsonar.host.url=https://sonarcloud.io
+            -Dsonar.exclusions=**/bin/**,**/obj/**,**/*.g.cs,**/*Generated*.cs,**/Migrations/**,wwwroot/**
+            -Dsonar.verbose=true
 
       - name: Resultado
         if: always()
-        run: |
-          echo "Análise concluída com sucesso!"
-          echo "Dashboard: https://sonarcloud.io/dashboard?id=EuMesmoMatheus_vea-backend"
+        run: echo "Análise concluída → https://sonarcloud.io/dashboard?id=EuMesmoMatheus_vea-backend"
