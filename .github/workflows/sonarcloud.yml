@@ -30,29 +30,42 @@ jobs:
       - name: Restore
         run: dotnet restore
 
-      # Define variáveis para usar no PR (evita injeção direta no run)
-      - name: Set PR variables
-        if: github.event_name == 'pull_request'
+      # Aqui a mágica: definimos as variáveis usando apenas set-env (sem ${{ }} no run)
+      - name: Prepare Sonar pull request parameters
         run: |
-          echo "PR_KEY=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
-          echo "PR_BRANCH=${{ github.head_ref }}" >> $GITHUB_ENV
-          echo "PR_BASE=${{ github.base_ref }}" >> $GITHUB_ENV
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "SONAR_PR_KEY=${{ github.event.pull_request.number }}" >> $GITHUB_ENV
+            echo "SONAR_PR_BRANCH=${{ github.head_ref }}" >> $GITHUB_ENV
+            echo "SONAR_PR_BASE=${{ github.base_ref }}" >> $GITHUB_ENV
+          else
+            echo "SONAR_PR_KEY=" >> $GITHUB_ENV
+            echo "SONAR_PR_BRANCH=" >> $GITHUB_ENV
+            echo "SONAR_PR_BASE=" >> $GITHUB_ENV
+          fi
 
       - name: Sonar Begin
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          dotnet sonarscanner begin \
-            /k:"EuMesmoMatheus_vea-backend" \
-            /o:"eumesmomatheus" \
-            /n:"VEA Backend API" \
-            /d:sonar.token="${SONAR_TOKEN}" \
-            /d:sonar.host.url="https://sonarcloud.io" \
+          cmd="dotnet sonarscanner begin \
+            /k:\"EuMesmoMatheus_vea-backend\" \
+            /o:\"eumesmomatheus\" \
+            /n:\"VEA Backend API\" \
+            /d:sonar.token=\"${SONAR_TOKEN}\" \
+            /d:sonar.host.url=\"https://sonarcloud.io\" \
             /d:sonar.scanner.scanAll=false \
-            /d:sonar.exclusions="**/bin/**,**/obj/**,**/*.g.cs,**/*Generated*.cs,**/Migrations/**,wwwroot/**" \
-            /d:sonar.verbose=true \
-            ${{ env.PR_KEY && format('/d:sonar.pullrequest.key={0} /d:sonar.pullrequest.branch={1} /d:sonar.pullrequest.base={2}', env.PR_KEY, env.PR_BRANCH, env.PR_BASE) }}
+            /d:sonar.exclusions=\"**/bin/**,**/obj/**,**/*.g.cs,**/*Generated*.cs,**/Migrations/**,wwwroot/**\" \
+            /d:sonar.verbose=true"
+
+          if [ -n "${SONAR_PR_KEY}" ]; then
+            cmd="$cmd /d:sonar.pullrequest.key=${SONAR_PR_KEY}"
+            cmd="$cmd /d:sonar.pullrequest.branch=${SONAR_PR_BRANCH}"
+            cmd="$cmd /d:sonar.pullrequest.base=${SONAR_PR_BASE}"
+          fi
+
+          echo "$cmd"
+          eval "$cmd"
 
       - name: Build
         run: |
