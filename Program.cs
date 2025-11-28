@@ -21,9 +21,9 @@ using Microsoft.AspNetCore.StaticFiles; // Necessário pro StaticFileOptions
 var builder = WebApplication.CreateBuilder(args);
 
 // Config de config
-builder.Configuration
-    .SetBasePath(AppContext.BaseDirectory)
-    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+//builder.Configuration
+//    .SetBasePath(AppContext.BaseDirectory)
+//    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
 
 // Serviços
 builder.Services.AddControllers()
