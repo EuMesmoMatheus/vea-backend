@@ -17,64 +17,60 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # obrigatório para PR e blame
+          fetch-depth: 0   # obrigatório para blame e PR decoration
 
       - name: Setup .NET 9.0
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 9.0.x
 
-      - name: Install SonarScanner .NET (v7+)
-        run: dotnet tool install --global dotnet-sonarscanner --version 7.1.0
+      # Versão mais nova e estável (evita bug conhecido do 7.1 com .NET 9)
+      - name: Install SonarScanner .NET
+        run: dotnet tool install --global dotnet-sonarscanner --version 8.0.1
+
+      - name: Restore dependencies
+        run: dotnet restore
 
       - name: SonarCloud Begin
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          CMD="dotnet sonarscanner begin \
-            /k:\"EuMesmoMatheus_vea-backend\" \
-            /o:\"eumesmomatheus\" \
-            /n:\"VEA Backend API\" \
-            /d:sonar.token=\"${{ secrets.SONAR_TOKEN }}\" \
-            /d:sonar.host.url=\"https://sonarcloud.io\" \
-            /d:sonar.sources=. \
-            /d:sonar.exclusions=\"**/bin/**,**/obj/**,**/*.g.cs,**/*Generated*.cs,**/Migrations/**\" \
-            /d:sonar.sourceEncoding=UTF-8 \
+          dotnet sonarscanner begin \
+            /k:"EuMesmoMatheus_vea-backend" \
+            /o:"eumesmomatheus" \
+            /n:"VEA Backend API" \
+            /d:sonar.token="${SONAR_TOKEN}" \
+            /d:sonar.host.url="https://sonarcloud.io" \
+            /d:sonar.exclusions="**/bin/**,**/obj/**,**/*.g.cs,**/*Generated*.cs,**/Migrations/**,wwwroot/uploads/**" \
+            /d:sonar.cs.vscoveragexml.reportsPaths=coverage/*.xml \
             /d:sonar.verbose=true \
             /d:sonar.scm.provider=git \
-            /d:sonar.dotnet.provideGeneratedSources=true"
+            $( [[ "${{ github.event_name }}" == "pull_request" ]] && \
+               echo "/d:sonar.pullrequest.key=${{ github.event.pull_request.number }} \
+                     /d:sonar.pullrequest.branch=${{ github.head_ref }} \
+                     /d:sonar.pullrequest.base=${{ github.base_ref }}" )
 
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            CMD="$CMD \
-              /d:sonar.pullrequest.key=${{ github.event.pull_request.number }} \
-              /d:sonar.pullrequest.branch=${{ github.head_ref }} \
-              /d:sonar.pullrequest.base=${{ github.base_ref }}"
-          fi
-
-          eval $CMD
-
-      - name: Build com símbolos completos
+      - name: Build com debug symbols (necessário pro Sonar)
         run: |
           dotnet build VEA.API.csproj \
             --configuration Release \
             /p:DebugType=full \
             /p:DebugSymbols=true \
-            /p:EmitCompilerGeneratedFiles=true \
             /p:ContinuousIntegrationBuild=true
 
-      - name: Gerar coverage vazio (evita warning)
+      # Opcional: se quiser coverage de verdade no futuro, troca por coverlet + reportgenerator
+      - name: Create dummy coverage (remove warning temporário)
         run: |
           mkdir -p coverage
-          echo '<?xml version="1.0" encoding="utf-8"?><coverage line-rate="0" branch-rate="0" lines-covered="0" lines-valid="0" branches-covered="0" branches-valid="0" timestamp="0" version="1.9"><sources/><packages/></coverage>' > coverage/coverage.opencover.xml
+          echo '<?xml version="1.0"?><coverage/>' > coverage/dummy.xml
 
       - name: SonarCloud End
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+        run: dotnet sonarscanner end /d:sonar.token="${SONAR_TOKEN}"
 
-      - name: Quality Gate Status
+      - name: Quality Gate Result
         if: always()
         run: |
-          echo "Analysis finished. Check results at https://sonarcloud.io/dashboard?id=EuMesmoMatheus_vea-backend"
+          echo "Análise concluída! Veja os resultados em: https://sonarcloud.io/dashboard?id=EuMesmoMatheus_vea-backend"
