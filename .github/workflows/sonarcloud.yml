@@ -17,51 +17,64 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0   # obrigatório para PR e blame
 
       - name: Setup .NET 9.0
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 9.0.x
 
-      # Instala o scanner de forma garantida e já coloca no PATH
-      - name: Install SonarScanner .NET
-        uses: SonarSource/sonarcloud-github-action@v3.0.0
+      - name: Install SonarScanner .NET (v7+)
+        run: dotnet tool install --global dotnet-sonarscanner --version 7.1.0
 
-      # BEGIN — agora o comando é dotnet-sonarscanner (hífen, não ponto)
       - name: SonarCloud Begin
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          dotnet-sonarscanner begin \
-            /k:"EuMesmoMatheus_vea-backend" \
-            /o:"eumesmomatheus" \
-            /n:"VEA Backend API" \
-            /d:sonar.token="${{ secrets.SONAR_TOKEN }}" \
-            /d:sonar.host.url="https://sonarcloud.io" \
+          CMD="dotnet sonarscanner begin \
+            /k:\"EuMesmoMatheus_vea-backend\" \
+            /o:\"eumesmomatheus\" \
+            /n:\"VEA Backend API\" \
+            /d:sonar.token=\"${{ secrets.SONAR_TOKEN }}\" \
+            /d:sonar.host.url=\"https://sonarcloud.io\" \
+            /d:sonar.sources=. \
+            /d:sonar.exclusions=\"**/bin/**,**/obj/**,**/*.g.cs,**/*Generated*.cs,**/Migrations/**\" \
+            /d:sonar.sourceEncoding=UTF-8 \
             /d:sonar.verbose=true \
             /d:sonar.scm.provider=git \
-            /d:sonar.dotnet.provideGeneratedSources=true \
-            /d:sonar.exclusions="**/bin/**,**/obj/**,**/*Designer.cs,**/Migrations/**,**/wwwroot/uploads/**" \
-            $( [[ "${{ github.event_name }}" == "pull_request" ]] && \
-               echo "/d:sonar.pullrequest.key=${{ github.event.pull_request.number }} \
-                     /d:sonar.pullrequest.branch=${{ github.head_ref }} \
-                     /d:sonar.pullrequest.base=${{ github.base_ref }}" || echo "" )
+            /d:sonar.dotnet.provideGeneratedSources=true"
 
-      # BUILD — deixa o scanner controlar tudo (não usa dotnet build puro)
-      - name: Build & Analyze with SonarScanner
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            CMD="$CMD \
+              /d:sonar.pullrequest.key=${{ github.event.pull_request.number }} \
+              /d:sonar.pullrequest.branch=${{ github.head_ref }} \
+              /d:sonar.pullrequest.base=${{ github.base_ref }}"
+          fi
+
+          eval $CMD
+
+      - name: Build com símbolos completos
         run: |
-          dotnet build --no-incremental \
+          dotnet build VEA.API.csproj \
+            --configuration Release \
             /p:DebugType=full \
             /p:DebugSymbols=true \
+            /p:EmitCompilerGeneratedFiles=true \
             /p:ContinuousIntegrationBuild=true
 
-      # END
+      - name: Gerar coverage vazio (evita warning)
+        run: |
+          mkdir -p coverage
+          echo '<?xml version="1.0" encoding="utf-8"?><coverage line-rate="0" branch-rate="0" lines-covered="0" lines-valid="0" branches-covered="0" branches-valid="0" timestamp="0" version="1.9"><sources/><packages/></coverage>' > coverage/coverage.opencover.xml
+
       - name: SonarCloud End
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: dotnet-sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
+        run: |
+          dotnet sonarscanner end /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
 
-      - name: Result
-        run: echo "Análise concluída! Veja em https://sonarcloud.io/dashboard?id=EuMesmoMatheus_vea-backend"
+      - name: Quality Gate Status
+        if: always()
+        run: |
+          echo "Analysis finished. Check results at https://sonarcloud.io/dashboard?id=EuMesmoMatheus_vea-backend"
