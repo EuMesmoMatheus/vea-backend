@@ -1,7 +1,9 @@
-// CI/CD + SonarCloud + Railway ativado – 28/11/2025
+// CI/CD + SonarCloud + Railway ativado – 01/12/2025
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,12 +17,24 @@ using System.Text;
 using System.Text.Json.Serialization;
 using VEA.API.Data;
 using VEA.API.Services;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.StaticFiles;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Serviços
+// ================= NOVO: Garante que variáveis do Railway sejam lidas =================
+builder.Configuration.AddEnvironmentVariables(); // ← essencial pro Railway funcionar
+
+// Configuração forte do SMTP (com fallback pra variável de ambiente)
+builder.Services.Configure<SmtpSettings>(options =>
+{
+    builder.Configuration.GetSection("Smtp").Bind(options);
+
+    // Sobrescreve a senha com a variável de ambiente (Railway)
+    var smtpPassword = Environment.GetEnvironmentVariable("SMTP_PASSWORD");
+    if (!string.IsNullOrEmpty(smtpPassword))
+        options.Password = smtpPassword;
+});
+
+// Serviços (o resto continua igual)
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -42,7 +56,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
            .EnableSensitiveDataLogging();
 });
 
-// JWT
+// JWT (já está ótimo)
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -60,7 +74,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             options.RequireHttpsMetadata = false;
     });
 
-// =============== CORS 100% CORRIGIDO (FUNCIONA COM VERCEL + RAILWAY) ===============
+// CORS (perfeito como está)
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngular", policy =>
@@ -68,22 +82,20 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(
                 "http://localhost:4200",
                 "https://localhost:4200",
-                "https://vea-nine.vercel.app"  // ← seu frontend em produção
+                "https://vea-nine.vercel.app"
             )
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .AllowCredentials(); // ← ESSENCIAL pro login com credenciais
+            .AllowCredentials();
     });
 });
 
-// Logging
 builder.Services.AddLogging(logging =>
 {
     logging.AddConsole();
     logging.SetMinimumLevel(LogLevel.Information);
 });
 
-// Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -114,7 +126,6 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Swagger sempre disponível
 app.UseSwagger();
 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "VEA API v1"));
 
@@ -130,12 +141,10 @@ app.UseExceptionHandler(errorApp =>
     });
 });
 
-// ORDEM CERTA (NUNCA MUDE ISSO)
-app.UseCors("AllowAngular");        // ← CORS PRIMEIRO
+app.UseCors("AllowAngular");
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Libera imagens pra todo mundo
 app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = ctx =>

@@ -1,19 +1,21 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Options;           // ← novo (obrigatório)
 using Microsoft.Extensions.Logging;
 using System.Net.Mail;
 using System.Net;
 using System.Threading.Tasks;
+using VEA.API.Models;                        // ← ajuste se o seu SmtpSettings estiver em outra pasta
 
 namespace VEA.API.Services
 {
     public class EmailService : IEmailService
     {
-        private readonly IConfiguration _config;
+        private readonly SmtpSettings _smtpSettings;   // ← mudou
         private readonly ILogger<EmailService> _logger;
 
-        public EmailService(IConfiguration config, ILogger<EmailService> logger)
+        // ← mudou só essa linha (o resto do construtor é igual)
+        public EmailService(IOptions<SmtpSettings> smtpSettings, ILogger<EmailService> logger)
         {
-            _config = config;
+            _smtpSettings = smtpSettings.Value;
             _logger = logger;
         }
 
@@ -29,11 +31,12 @@ namespace VEA.API.Services
 
         private async Task SendEmailAsync(string to, string subject, string body)
         {
-            var host = _config["Smtp:Host"];
-            var port = int.Parse(_config["Smtp:Port"] ?? "587");
-            var username = _config["Smtp:Username"];
-            var password = _config["Smtp:Password"];
-            var from = _config["Smtp:From"] ?? "no-reply@vea.com";
+            // ← agora pega tudo do _smtpSettings (a senha vem do Railway automaticamente)
+            var host = _smtpSettings.Host;
+            var port = _smtpSettings.Port;
+            var username = _smtpSettings.Username;
+            var password = _smtpSettings.Password;
+            var from = _smtpSettings.From ?? "no-reply@vea.com";
 
             using var smtpClient = new SmtpClient(host, port);
             smtpClient.EnableSsl = true;
@@ -41,7 +44,7 @@ namespace VEA.API.Services
 
             using var mailMessage = new MailMessage(from, to, subject, body) { IsBodyHtml = true };
 
-            await smtpClient.SendMailAsync(mailMessage); // Sem streams ou BinaryReader
+            await smtpClient.SendMailAsync(mailMessage); // ← exatamente igual ao seu código original
             _logger.LogInformation("E-mail enviado para {To}", to);
         }
     }

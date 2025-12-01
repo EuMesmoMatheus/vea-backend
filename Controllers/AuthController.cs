@@ -199,7 +199,7 @@ public class AuthController : ControllerBase
             company.AddressId = address.Id;
             await _context.SaveChangesAsync(); // Update rápido na Company
             // Envia email confirmação com HTML bonito e link pro front (paleta rosa VEA)
-            var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "http://localhost:4200"; // Fallback dev
+            var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "https://vea-nine.vercel.app"; // Fallback dev
             var confirmLink = $"{frontendUrl}/confirm/company/{company.Id}?token={GenerateTempToken(company.Email)}";
             var htmlBody = GenerateConfirmationHtml(confirmLink, company.Name, "empresa");
             await _emailService.SendConfirmationEmail(company.Email, "Confirme sua conta VEA - Veja, Explore e Agende", htmlBody);
@@ -266,7 +266,7 @@ public class AuthController : ControllerBase
             _context.Clients.Add(client);
             await _context.SaveChangesAsync();
             // Envia email com HTML e link pro front (paleta rosa VEA)
-            var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "http://localhost:4200";
+            var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "https://vea-nine.vercel.app";
             var confirmLink = $"{frontendUrl}/confirm/client/{client.Id}?token={GenerateTempToken(client.Email)}";
             var htmlBody = GenerateConfirmationHtml(confirmLink, client.Name ?? "Cliente", "cliente");
             await _emailService.SendConfirmationEmail(client.Email, "Confirme sua conta VEA - Veja, Explore e Agende", htmlBody);
@@ -305,7 +305,7 @@ public class AuthController : ControllerBase
             _context.Employees.Add(employee);
             await _context.SaveChangesAsync();
             // Envia invite com HTML e link pro front (paleta rosa VEA)
-            var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "http://localhost:4200";
+            var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "https://vea-nine.vercel.app";
             var inviteLink = $"{frontendUrl}/employee/activate/{employee.Id}?token={GenerateTempToken(employee.Email)}";
             var htmlBody = GenerateInviteHtml(inviteLink, employee.Name ?? "Funcionário");
             await _emailService.SendInviteEmail(employee.Email, "Convite VEA - Crie sua senha", htmlBody);
@@ -525,8 +525,8 @@ public class AuthController : ControllerBase
             var emailLower = email.Trim().ToLowerInvariant();
             var company = await _context.Companies.FirstOrDefaultAsync(c => c.Email.ToLower() == emailLower && !c.IsActive); // <<< FIX: ToLower()
             if (company == null) return NotFound(new ApiResponse<object> { Success = false, Message = "Empresa não encontrada ou já ativa" });
-            var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "http://localhost:4200";
-            var confirmLink = $"{frontendUrl}/confirm/company/{company.Id}?token={GenerateTempToken(company.Email)}";
+            var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "https://vea-nine.vercel.app";
+            var confirmLink = $"{frontendUrl}/confirm/company/{company.Id}?token={GenerateTempToken (company.Email)}";
             var htmlBody = GenerateConfirmationHtml(confirmLink, company.Name, "empresa");
             await _emailService.SendConfirmationEmail(company.Email, "Confirme sua conta VEA - Veja, Explore e Agende", htmlBody);
             return Ok(new ApiResponse<object> { Success = true, Message = "E-mail de confirmação reenviado! Verifique sua caixa de entrada." });
