@@ -24,7 +24,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Configuration.AddEnvironmentVariables(); // ← essencial pro Railway funcionar
 
 // Configuração forte do SMTP (com fallback pra variável de ambiente)
-builder.Services.Configure<SmtpSettings>(options =>
+builder.Services.Configure<VEA.API.Models.SmtpSettings>(options =>
 {
     builder.Configuration.GetSection("Smtp").Bind(options);
 
