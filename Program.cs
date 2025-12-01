@@ -20,7 +20,7 @@ using Microsoft.AspNetCore.StaticFiles; // Necessário pro StaticFileOptions
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Config de config
+// Config de config (você tinha comentado, deixei igual)
 //builder.Configuration
 // .SetBasePath(AppContext.BaseDirectory)
 // .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
@@ -31,6 +31,7 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     });
+
 builder.Services.AddScoped<ServiceService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 
@@ -38,6 +39,7 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 if (string.IsNullOrEmpty(connectionString))
     throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 {
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString))
@@ -63,15 +65,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             options.RequireHttpsMetadata = false;
     });
 
-// CORS (permite o Angular)
+// =============== CORS CORRIGIDO E ATUALIZADO (única mudança real) ===============
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngular", policy =>
     {
-        policy.WithOrigins("http://localhost:4200", "https://localhost:4200")
-              .AllowAnyMethod()
-              .AllowAnyHeader()
-              .AllowCredentials();
+        policy.WithOrigins(
+                "http://localhost:4200",
+                "https://localhost:4200",
+                "https://vea-nine.vercel.app"   // ← URL do seu frontend em produção
+            )
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials(); // essencial pro login funcionar
     });
 });
 
@@ -101,19 +107,19 @@ builder.Services.AddSwaggerGen(c =>
             new OpenApiSecurityScheme
             {
                 Reference = new OpenApiReference
-            {
-                Type = ReferenceType.SecurityScheme,
-                Id = "Bearer"
-            }
-        },
-        Array.Empty<string>()
-    }
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
 });
-});
+
 var app = builder.Build();
 
-// AQUI ESTÁ A ÚNICA MUDANÇA QUE IMPORTA
-// Removi o if (IsDevelopment() → Swagger agora funciona na nuvem também
+// Swagger sempre disponível (você já tinha removido o IsDevelopment)
 app.UseSwagger();
 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "VEA API v1"));
 
@@ -130,11 +136,11 @@ app.UseExceptionHandler(errorApp =>
 });
 
 // ORDEM CERTA: CORS → AUTH → AUTHORIZATION → STATICFILES
-app.UseCors("AllowAngular");
-app.UseAuthentication(); // Primeiro verifica o token
-app.UseAuthorization(); // Depois aplica as regras de permissão
+app.UseCors("AllowAngular");                    // ← CORS vem antes de tudo
+app.UseAuthentication();                        // Primeiro verifica o token
+app.UseAuthorization();                         // Depois aplica as regras de permissão
 
-// AQUI LIBERA AS IMAGENS PRA TODO MUNDO (clientes, admin, etc)
+// AQUI LIBERA AS IMAGENS PRA TODO MUNDO (clientes, admin, etc) – mantido exatamente como você tinha
 app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = ctx =>
