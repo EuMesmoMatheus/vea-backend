@@ -1,4 +1,4 @@
-// CI/CD + SonarCloud + Railway ativado – 28/11/2025 *
+// CI/CD + SonarCloud + Railway ativado – 28/11/2025
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -16,14 +16,9 @@ using System.Text.Json.Serialization;
 using VEA.API.Data;
 using VEA.API.Services;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.StaticFiles; // Necessário pro StaticFileOptions
+using Microsoft.AspNetCore.StaticFiles;
 
 var builder = WebApplication.CreateBuilder(args);
-
-// Config de config (você tinha comentado, deixei igual)
-//builder.Configuration
-// .SetBasePath(AppContext.BaseDirectory)
-// .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
 
 // Serviços
 builder.Services.AddControllers()
@@ -65,7 +60,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             options.RequireHttpsMetadata = false;
     });
 
-// =============== CORS CORRIGIDO E ATUALIZADO (única mudança real) ===============
+// =============== CORS 100% CORRIGIDO (FUNCIONA COM VERCEL + RAILWAY) ===============
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngular", policy =>
@@ -73,11 +68,11 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(
                 "http://localhost:4200",
                 "https://localhost:4200",
-                "https://vea-nine.vercel.app"   // ← URL do seu frontend em produção
+                "https://vea-nine.vercel.app"  // ← seu frontend em produção
             )
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .AllowCredentials(); // essencial pro login funcionar
+            .AllowCredentials(); // ← ESSENCIAL pro login com credenciais
     });
 });
 
@@ -119,7 +114,7 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Swagger sempre disponível (você já tinha removido o IsDevelopment)
+// Swagger sempre disponível
 app.UseSwagger();
 app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "VEA API v1"));
 
@@ -135,12 +130,12 @@ app.UseExceptionHandler(errorApp =>
     });
 });
 
-// ORDEM CERTA: CORS → AUTH → AUTHORIZATION → STATICFILES
-app.UseCors("AllowAngular");                    // ← CORS vem antes de tudo
-app.UseAuthentication();                        // Primeiro verifica o token
-app.UseAuthorization();                         // Depois aplica as regras de permissão
+// ORDEM CERTA (NUNCA MUDE ISSO)
+app.UseCors("AllowAngular");        // ← CORS PRIMEIRO
+app.UseAuthentication();
+app.UseAuthorization();
 
-// AQUI LIBERA AS IMAGENS PRA TODO MUNDO (clientes, admin, etc) – mantido exatamente como você tinha
+// Libera imagens pra todo mundo
 app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = ctx =>
@@ -152,7 +147,7 @@ app.UseStaticFiles(new StaticFileOptions
 app.UseHttpsRedirection();
 app.MapControllers();
 
-// Cria o banco se não existirem
+// Cria o banco se não existir
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
