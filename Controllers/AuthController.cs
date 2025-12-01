@@ -269,7 +269,7 @@ public class AuthController : ControllerBase
             var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "https://vea-nine.vercel.app";
             var confirmLink = $"{frontendUrl}/confirm/client/{client.Id}?token={GenerateTempToken(client.Email)}";
             var htmlBody = GenerateConfirmationHtml(confirmLink, client.Name ?? "Cliente", "cliente");
-            await _emailService.SendConfirmationEmail(client.Email, "Confirme sua conta VEA - Veja, Explore e Agende", htmlBody);
+            _ = _emailService.SendConfirmationEmail(client.Email, "Confirme sua conta VEA - Veja, Explore e Agende", htmlBody);
             // Retorna sem senha + role = "Client", companyId = 0
             return Ok(new ApiResponse<object>
             {
@@ -308,8 +308,7 @@ public class AuthController : ControllerBase
             var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "https://vea-nine.vercel.app";
             var inviteLink = $"{frontendUrl}/employee/activate/{employee.Id}?token={GenerateTempToken(employee.Email)}";
             var htmlBody = GenerateInviteHtml(inviteLink, employee.Name ?? "Funcionário");
-            await _emailService.SendInviteEmail(employee.Email, "Convite VEA - Crie sua senha", htmlBody);
-            // Adiciona role = "Employee", companyId = employee.CompanyId
+            _ = _emailService.SendInviteEmail(employee.Email, "Convite VEA - Crie sua senha", htmlBody);            // Adiciona role = "Employee", companyId = employee.CompanyId
             return Ok(new ApiResponse<object>
             {
                 Success = true,
@@ -528,7 +527,7 @@ public class AuthController : ControllerBase
             var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "https://vea-nine.vercel.app";
             var confirmLink = $"{frontendUrl}/confirm/company/{company.Id}?token={GenerateTempToken (company.Email)}";
             var htmlBody = GenerateConfirmationHtml(confirmLink, company.Name, "empresa");
-            await _emailService.SendConfirmationEmail(company.Email, "Confirme sua conta VEA - Veja, Explore e Agende", htmlBody);
+            _ = _emailService.SendConfirmationEmail(company.Email, "Confirme sua conta VEA - Veja, Explore e Agende", htmlBody);
             return Ok(new ApiResponse<object> { Success = true, Message = "E-mail de confirmação reenviado! Verifique sua caixa de entrada." });
         }
         catch (Exception ex)
