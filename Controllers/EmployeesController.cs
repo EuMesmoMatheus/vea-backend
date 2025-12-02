@@ -291,6 +291,7 @@ public class EmployeesController : ControllerBase
         // Hash da senha e ativa
         employee.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
         employee.EmailVerified = true;
+        employee.IsActive = true;  // Também seta IsActive para aparecer nas consultas
 
         await _context.SaveChangesAsync();
 
