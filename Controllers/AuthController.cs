@@ -480,7 +480,7 @@ public class AuthController : ControllerBase
             return Ok(new ApiResponse<object>
             {
                 Success = true,
-                Data = new { token = jwtToken, user = new { id = userId, name, email = login.Email, role, companyId } }
+                Data = new { token = jwtToken, user = new { id = userId, name, email = login.Email, role, companyId, canal = companyId } }
             });
         }
         catch (Exception ex)
