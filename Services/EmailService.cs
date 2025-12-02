@@ -31,21 +31,35 @@ namespace VEA.API.Services
 
         private async Task SendEmailAsync(string to, string subject, string body)
         {
-            // ← agora pega tudo do _smtpSettings (a senha vem do Railway automaticamente)
-            var host = _smtpSettings.Host;
-            var port = _smtpSettings.Port;
-            var username = _smtpSettings.Username;
-            var password = _smtpSettings.Password;
-            var from = _smtpSettings.From ?? "no-reply@vea.com";
+            try
+            {
+                var host = _smtpSettings.Host;
+                var port = _smtpSettings.Port;
+                var username = _smtpSettings.Username;
+                var password = _smtpSettings.Password;
+                var from = _smtpSettings.From ?? "no-reply@vea.com";
 
-            using var smtpClient = new SmtpClient(host, port);
-            smtpClient.EnableSsl = true;
-            smtpClient.Credentials = new NetworkCredential(username, password);
+                _logger.LogInformation("[EMAIL] Tentando enviar email para {To}. Host={Host}, Port={Port}, From={From}", to, host, port, from);
 
-            using var mailMessage = new MailMessage(from, to, subject, body) { IsBodyHtml = true };
+                if (string.IsNullOrEmpty(password))
+                {
+                    _logger.LogWarning("[EMAIL] Password do SMTP está vazio! Email não será enviado.");
+                    return;
+                }
 
-            await smtpClient.SendMailAsync(mailMessage); // ← exatamente igual ao seu código original
-            _logger.LogInformation("E-mail enviado para {To}", to);
+                using var smtpClient = new SmtpClient(host, port);
+                smtpClient.EnableSsl = true;
+                smtpClient.Credentials = new NetworkCredential(username, password);
+
+                using var mailMessage = new MailMessage(from, to, subject, body) { IsBodyHtml = true };
+
+                await smtpClient.SendMailAsync(mailMessage);
+                _logger.LogInformation("[EMAIL] E-mail enviado com sucesso para {To}", to);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[EMAIL] Erro ao enviar email para {To}. Detalhes: {Message}", to, ex.Message);
+            }
         }
     }
 }
