@@ -1,20 +1,21 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using VEA.API.Data;
 using VEA.API.Models;
-using VEA.API.Services; // Pra IEmailService
+using VEA.API.Services;
 using System;
 using System.Text;
 using Microsoft.AspNetCore.Hosting;
 using System.IO;
 using Microsoft.AspNetCore.Http;
-using BCrypt.Net; // Adicionado para hash de senha
-using VEA.API.Models.Dtos; // Pro EmployeeDto
+using BCrypt.Net;
+using VEA.API.Models.Dtos;
 
 // Novos DTOs pra ativa��o
 public class ActivateEmployeeDto
@@ -38,11 +39,14 @@ public class EmployeesController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly IEmailService _emailService;
     private readonly IWebHostEnvironment _env;
-    public EmployeesController(ApplicationDbContext context, IEmailService emailService, IWebHostEnvironment env)
+    private readonly IConfiguration _config;
+    
+    public EmployeesController(ApplicationDbContext context, IEmailService emailService, IWebHostEnvironment env, IConfiguration config)
     {
         _context = context;
         _emailService = emailService;
         _env = env;
+        _config = config;
     }
 
     [HttpGet]
@@ -129,7 +133,7 @@ public class EmployeesController : ControllerBase
         _context.Employees.Add(employee);
         await _context.SaveChangesAsync();
         // Envia verification email
-        var frontendUrl = "http://localhost:4200";
+        var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "https://vea-nine.vercel.app";
         var inviteLink = $"{frontendUrl}/employee/activate/{employee.Id}?token={GenerateTempToken(employee.Email ?? "")}";
         var htmlBody = GenerateInviteHtml(inviteLink, employee.Name ?? "Funcion�rio");
         await _emailService.SendInviteEmail(employee.Email ?? "", "Convite VEA - Crie sua senha", htmlBody);
