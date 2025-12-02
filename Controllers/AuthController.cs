@@ -256,16 +256,19 @@ public class AuthController : ControllerBase
             }
             // <<< FIM DO DEBUG >>>
             // Cria Client do DTO
+            var hashedPassword = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+            _logger.LogInformation("[DEBUG RegisterClient] Password hashed. Hash starts with: {HashPrefix}", hashedPassword?.Substring(0, 10) ?? "NULL");
+            
             var client = new Client
             {
                 Name = dto.Name,
                 Email = emailNormalized, // Salva normalized
                 Phone = dto.Phone,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password), // <<< FIX: Hash da plain text do DTO
+                PasswordHash = hashedPassword,
                 CompanyId = null, // Default pra clients
                 IsActive = false
             };
-            _logger.LogInformation("[DEBUG RegisterClient] Saving client with normalized email and hashed password");
+            _logger.LogInformation("[DEBUG RegisterClient] Saving client. PasswordHash starts with: {HashPrefix}", client.PasswordHash?.Substring(0, 10) ?? "NULL");
             _context.Clients.Add(client);
             await _context.SaveChangesAsync();
             // Envia email com HTML e link pro front (paleta rosa VEA)
@@ -459,8 +462,14 @@ public class AuthController : ControllerBase
                 userId = client.Id;
                 name = client.Name ?? string.Empty;
                 companyId = 0; // Não aplicável
-                _logger.LogInformation($"[DEBUG Login Client] ID={client.Id}, CompanyId={companyId}, Role={role}, Email={loginEmailLower}");
+                _logger.LogInformation("[DEBUG Login Client] ID={Id}, CompanyId={CompanyId}, Role={Role}, Email={Email}, HashPrefix={HashPrefix}", 
+                    client.Id, companyId, role, loginEmailLower, passwordHash.Length > 10 ? passwordHash.Substring(0, 10) : passwordHash);
             }
+            
+            // Log do hash antes de verificar
+            _logger.LogInformation("[DEBUG Login] Attempting BCrypt.Verify. Hash length={Length}, Hash prefix={Prefix}", 
+                passwordHash.Length, passwordHash.Length > 10 ? passwordHash.Substring(0, 10) : passwordHash);
+            
             if (string.IsNullOrEmpty(passwordHash) || !BCrypt.Net.BCrypt.Verify(login.Password, passwordHash))
             {
                 return Unauthorized(new ApiResponse<object> { Success = false, Message = "Senha incorreta." });
