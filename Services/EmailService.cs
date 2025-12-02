@@ -1,8 +1,9 @@
-﻿using Microsoft.Extensions.Options;           // ← novo (obrigatório)
-using Microsoft.Extensions.Logging;
-using System.Net.Mail;
+﻿using System;
 using System.Net;
+using System.Net.Mail;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using VEA.API.Models;                        // ← ajuste se o seu SmtpSettings estiver em outra pasta
 
 namespace VEA.API.Services
