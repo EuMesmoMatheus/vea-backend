@@ -1,62 +1,25 @@
-﻿using FluentAssertions;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Moq;
-using System;
-using System.IO;
-using System.Linq;
-using System.Net;
+﻿// Testes/Companies/CompaniesControllerTests.cs
 using System.Net.Http;
-using System.Net.Http.Json;
-using VEA.API;
-using VEA.API.Data;
-using VEA.API.Models;
 using Xunit;
 
-namespace VEA.API.Testes.Companies;
-
-public class CompaniesControllerTests : IClassFixture<WebApplicationFactory<VEA.API.Program>>
+namespace VEA.API.Testes.Companies
 {
-    protected readonly WebApplicationFactory<VEA.API.Program> _factory;
-    protected readonly HttpClient _client;
-
-    public CompaniesControllerTests(WebApplicationFactory<VEA.API.Program> factory)
+    /// <summary>
+    /// Classe base para testes do CompaniesController.
+    /// </summary>
+    public class CompaniesControllerTests : IClassFixture<CustomWebApplicationFactory>
     {
-        var mockEnv = new Mock<IWebHostEnvironment>();
-        mockEnv.Setup(m => m.WebRootPath).Returns(Path.GetTempPath());
+        protected readonly CustomWebApplicationFactory _factory;
 
-        _factory = factory.WithWebHostBuilder(builder =>
+        public CompaniesControllerTests(CustomWebApplicationFactory factory)
         {
-            builder.ConfigureServices(services =>
-            {
-                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>));
-                if (descriptor != null) services.Remove(descriptor);
+            _factory = factory;
+        }
 
-                services.AddDbContext<ApplicationDbContext>(options =>
-                    options.UseInMemoryDatabase("TestDb_Companies_" + Guid.NewGuid()));
+        protected HttpClient CreateClientWithClaims(int userId = 1, string role = "Client", int companyId = 1)
+            => _factory.CreateAuthenticatedClient(userId, role, companyId);
 
-                services.AddAuthentication("Test")
-                    .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, TestAuthHandler>("Test", _ => { });
-
-                services.AddAuthorization();
-
-                // Substitui o IWebHostEnvironment pelo mock
-                services.RemoveAll<IWebHostEnvironment>();
-                services.AddSingleton(mockEnv.Object);
-            });
-        });
-
-        _client = _factory.CreateClient();
-    }
-
-    protected HttpClient CreateAdminClient(int companyId = 1)
-    {
-        var client = _factory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new("Test");
-        client.DefaultRequestHeaders.Add("X-Test-Claims", $"1,Admin,{companyId}");
-        return client;
+        protected HttpClient CreateAdminClient(int adminId = 1, int companyId = 1)
+            => _factory.CreateAdminClient(adminId, companyId);
     }
 }

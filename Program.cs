@@ -18,7 +18,6 @@ using System.Text;
 using System.Text.Json.Serialization;
 using VEA.API.Data;
 using VEA.API.Services;
-using VEA.API.Testes;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,17 +44,26 @@ builder.Services.AddControllers()
 builder.Services.AddScoped<ServiceService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 
-// DbContext
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-if (string.IsNullOrEmpty(connectionString))
-    throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
+// DbContext - configuração diferenciada para ambiente de teste
+if (builder.Environment.IsEnvironment("Testing"))
 {
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString))
-           .LogTo(Console.WriteLine, LogLevel.Information)
-           .EnableSensitiveDataLogging();
-});
+    // Em ambiente de teste, usa InMemory database (será sobrescrito pela TestFactory)
+    builder.Services.AddDbContext<ApplicationDbContext>(options =>
+        options.UseInMemoryDatabase("TestingDb"));
+}
+else
+{
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    if (string.IsNullOrEmpty(connectionString))
+        throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
+    builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    {
+        options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString))
+               .LogTo(Console.WriteLine, LogLevel.Information)
+               .EnableSensitiveDataLogging();
+    });
+}
 
 // JWT (já está ótimo)
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -71,16 +79,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key not found.")))
         };
-        if (builder.Environment.IsDevelopment())
+        if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
             options.RequireHttpsMetadata = false;
     });
 
-if (builder.Environment.IsEnvironment("Testing"))
-{
-    builder.Services.AddAuthentication("TestAuth")
-        .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
-            "TestAuth", options => { });
-}
 // CORS (perfeito como está) → MANTIVE EXATAMENTE IGUAL
 builder.Services.AddCors(options =>
 {
@@ -166,11 +168,14 @@ app.UseStaticFiles(new StaticFileOptions
 app.UseHttpsRedirection();
 app.MapControllers();
 
-// Cria o banco se não existir
-using (var scope = app.Services.CreateScope())
+// Cria o banco se não existir (apenas em ambientes não-teste)
+if (!app.Environment.IsEnvironment("Testing"))
 {
-    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    dbContext.Database.EnsureCreated();
+    using (var scope = app.Services.CreateScope())
+    {
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        dbContext.Database.EnsureCreated();
+    }
 }
 
 app.Run();

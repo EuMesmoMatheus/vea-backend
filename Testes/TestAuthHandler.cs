@@ -9,6 +9,10 @@ using System.Threading.Tasks;
 
 namespace VEA.API.Testes;
 
+/// <summary>
+/// Handler de autenticação para testes de integração.
+/// Permite simular usuários autenticados sem necessidade de JWT real.
+/// </summary>
 public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     public TestAuthHandler(
@@ -21,35 +25,39 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        // 1ª CORREÇÃO: Verifica se o scheme é "Test" (senão ele roda em todo request)
-        if (!Context.Request.Headers.Authorization.ToString().Contains("Test"))
+        // Verifica se há header de autorização com "Test"
+        var authHeader = Context.Request.Headers.Authorization.ToString();
+        
+        if (string.IsNullOrEmpty(authHeader) || !authHeader.Contains("Test"))
+        {
             return Task.FromResult(AuthenticateResult.NoResult());
+        }
 
+        // Lê claims customizadas do header X-Test-Claims
         var testClaimsHeader = Context.Request.Headers["X-Test-Claims"].FirstOrDefault();
 
-        var claims = new List<Claim>
-        {
-            new Claim(ClaimTypes.NameIdentifier, "1"),
-            new Claim(ClaimTypes.Role, "Client"),
-            new Claim("companyId", "1"),
-            new Claim("ClientId", "1") // ESSA LINHA É OBRIGATÓRIA pro seu [Authorize(Policy = "ClientOnly")]
-        };
+        // Claims padrão
+        var userId = "1";
+        var role = "Client";
+        var companyId = "1";
 
         if (!string.IsNullOrEmpty(testClaimsHeader))
         {
             var parts = testClaimsHeader.Split(',');
-            var userId = parts.Length > 0 ? parts[0].Trim() : "1";
-            var role = parts.Length > 1 ? parts[1].Trim() : "Client";
-            var companyId = parts.Length > 2 ? parts[2].Trim() : "1";
-
-            claims = new List<Claim>
-            {
-                new Claim(ClaimTypes.NameIdentifier, userId),
-                new Claim(ClaimTypes.Role, role),
-                new Claim("companyId", companyId),
-                new Claim("ClientId", userId) // ESSENCIAL para o seu controller saber quem é o cliente
-            };
+            userId = parts.Length > 0 ? parts[0].Trim() : "1";
+            role = parts.Length > 1 ? parts[1].Trim() : "Client";
+            companyId = parts.Length > 2 ? parts[2].Trim() : "1";
         }
+
+        var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.NameIdentifier, userId),
+            new Claim(ClaimTypes.Role, role),
+            new Claim("companyId", companyId),
+            new Claim("CompanyId", companyId), // Duplicado para compatibilidade
+            new Claim("ClientId", userId),      // Para policies que verificam ClientId
+            new Claim("sub", userId),           // Padrão JWT
+        };
 
         var identity = new ClaimsIdentity(claims, Scheme.Name);
         var principal = new ClaimsPrincipal(identity);

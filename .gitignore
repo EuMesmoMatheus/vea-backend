@@ -361,3 +361,27 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# ======================
+# VEA.API Specific
+# ======================
+
+# User secrets (local development)
+secrets.json
+
+# Local settings with credentials (use appsettings.Example.json as template)
+appsettings.Local.json
+
+# Test results and coverage
+TestResults/
+coverage/
+*.trx
+
+# SonarQube/SonarCloud
+.sonarqube/
+.scannerwork/
+
+# IDE
+.idea/
+*.swp
+*.swo

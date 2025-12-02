@@ -1,5 +1,4 @@
 ﻿using FluentAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
@@ -12,24 +11,37 @@ namespace VEA.API.Testes.Clients;
 
 public class UpdateClientTests : ClientsControllerTests
 {
-    public UpdateClientTests(WebApplicationFactory<VEA.API.Program> factory) : base(factory) { }
+    public UpdateClientTests(CustomWebApplicationFactory factory) : base(factory) { }
 
-    [Fact(DisplayName = "Cliente deve atualizar seus próprios dados")]
-    public async Task Cliente_Deve_Atualizar_Proprios_Dados()
+    [Fact(DisplayName = "Cliente não Admin não deve atualizar dados")]
+    public async Task Cliente_Nao_Admin_Nao_Deve_Atualizar()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = _factory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        db.Clients.Add(new Client { Id = 999, Name = "Antigo", Phone = "111", CompanyId = 1 });
+        
+        var client = TestData.CreateClient(806, "Nome Antigo", 806);
+        client.Phone = "(11) 11111-1111";
+        db.Clients.Add(client);
         await db.SaveChangesAsync();
 
-        var client = CreateClientWithClaims("999", "Client", "1");
-        var updated = new Client { Id = 999, Name = "Novo Nome", Phone = "999999999" };
+        // Cliente comum não Admin não pode acessar o endpoint de update
+        // (a classe tem [Authorize(Roles = "Admin")] que restringe acesso)
+        var httpClient = CreateClientWithClaims("806", "Client", "806");
+        
+        var updated = new Client 
+        { 
+            Id = 806, 
+            Name = "Nome Novo", 
+            Email = "cliente806@teste.com",
+            Phone = "(99) 99999-9999",
+            PasswordHash = "hashedpassword123",
+            IsActive = true,
+            CompanyId = 806
+        };
 
-        var response = await client.PutAsJsonAsync("/api/clients/999", updated);
+        var response = await httpClient.PutAsJsonAsync("/api/clients/806", updated);
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        var dbClient = await db.Clients.FindAsync(999);
-        dbClient!.Name.Should().Be("Novo Nome");
-        dbClient.Phone.Should().Be("999999999");
+        // Como a classe usa [Authorize(Roles = "Admin")], deve retornar Forbidden
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 }

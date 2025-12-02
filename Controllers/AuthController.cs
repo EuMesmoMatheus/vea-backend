@@ -122,7 +122,7 @@ public class AuthController : ControllerBase
             {
                 operatingHours = JsonSerializer.Deserialize<OperatingHours>(operatingHoursJson);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return BadRequest(new ApiResponse<Company> { Success = false, Message = "Horário inválido: " + operatingHoursJson });
             }
@@ -136,14 +136,17 @@ public class AuthController : ControllerBase
             }
             // <<< DEBUG: ADICIONE AQUI >>>
             var allCompaniesEmails = await _context.Companies.Select(c => c.Email).ToListAsync();
-            var allClientsEmails = await _context.Clients.Select(c => c.Email).ToListAsync(); // Checa clients também pra ver se tem cross-check
-            _logger.LogInformation($"[DEBUG RegisterCompany] All Companies emails: [{string.Join(", ", allCompaniesEmails ?? new List<string>())}] (Count: {allCompaniesEmails?.Count ?? 0})");
-            _logger.LogInformation($"[DEBUG RegisterCompany] All Clients emails: [{string.Join(", ", allClientsEmails ?? new List<string>())}] (Count: {allClientsEmails?.Count ?? 0})");
-            var emailNormalized = email?.Trim().ToLowerInvariant(); // Normaliza pra debug (e use isso na query abaixo se quiser)
-            bool existsInCompanies = await _context.Companies.AnyAsync(c => c.Email.ToLower() == emailNormalized); // <<< FIX: ToLower()
-            bool existsInClients = await _context.Clients.AnyAsync(c => c.Email.ToLower() == emailNormalized); // Adiciona check em clients também, pra debug completo
-            _logger.LogInformation($"[DEBUG RegisterCompany] Email '{email}' (normalized: '{emailNormalized}') EXISTS in Companies: {existsInCompanies} | in Clients: {existsInClients}");
-            if (existsInCompanies || existsInClients) // Muda o if pra checar ambos, pra evitar cross-registro
+            var allClientsEmails = await _context.Clients.Select(c => c.Email).ToListAsync();
+            _logger.LogInformation("[DEBUG RegisterCompany] All Companies emails: [{Emails}] (Count: {Count})", 
+                string.Join(", ", allCompaniesEmails), allCompaniesEmails.Count);
+            _logger.LogInformation("[DEBUG RegisterCompany] All Clients emails: [{Emails}] (Count: {Count})", 
+                string.Join(", ", allClientsEmails), allClientsEmails.Count);
+            var emailNormalized = email?.Trim().ToLowerInvariant() ?? "";
+            bool existsInCompanies = await _context.Companies.AnyAsync(c => c.Email != null && c.Email.ToLower() == emailNormalized);
+            bool existsInClients = await _context.Clients.AnyAsync(c => c.Email != null && c.Email.ToLower() == emailNormalized);
+            _logger.LogInformation("[DEBUG RegisterCompany] Email '{Email}' (normalized: '{Normalized}') EXISTS in Companies: {InCompanies} | in Clients: {InClients}", 
+                email, emailNormalized, existsInCompanies, existsInClients);
+            if (existsInCompanies || existsInClients)
             {
                 return BadRequest(new ApiResponse<Company> { Success = false, Message = "E-mail já cadastrado (em Companies ou Clients)" });
             }
@@ -200,9 +203,9 @@ public class AuthController : ControllerBase
             await _context.SaveChangesAsync(); // Update rápido na Company
             // Envia email confirmação com HTML bonito e link pro front (paleta rosa VEA)
             var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "https://vea-nine.vercel.app"; // Fallback dev
-            var confirmLink = $"{frontendUrl}/confirm/company/{company.Id}?token={GenerateTempToken(company.Email)}";
-            var htmlBody = GenerateConfirmationHtml(confirmLink, company.Name, "empresa");
-            await _emailService.SendConfirmationEmail(company.Email, "Confirme sua conta VEA - Veja, Explore e Agende", htmlBody);
+            var confirmLink = $"{frontendUrl}/confirm/company/{company.Id}?token={GenerateTempToken(company.Email!)}";
+            var htmlBody = GenerateConfirmationHtml(confirmLink, company.Name ?? "Empresa", "empresa");
+            await _emailService.SendConfirmationEmail(company.Email!, "Confirme sua conta VEA - Veja, Explore e Agende", htmlBody);
             // Retorna sem senha + role = "Admin", companyId = company.Id
             company.PasswordHash = null;
             // FIX: Torna paths absolutos antes de retornar
@@ -294,8 +297,8 @@ public class AuthController : ControllerBase
                 return BadRequest(new ApiResponse<Employee> { Success = false, Message = "E-mail é obrigatório" });
             var companyId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
             employee.CompanyId = companyId;
-            var emailNormalized = employee.Email?.Trim().ToLowerInvariant();
-            bool existsInCompany = await _context.Employees.AnyAsync(e => e.Email.ToLower() == emailNormalized && e.CompanyId == companyId); // <<< FIX: ToLower()
+            var emailNormalized = employee.Email?.Trim().ToLowerInvariant() ?? "";
+            bool existsInCompany = await _context.Employees.AnyAsync(e => e.Email != null && e.Email.ToLower() == emailNormalized && e.CompanyId == companyId);
             if (existsInCompany)
                 return BadRequest(new ApiResponse<Employee> { Success = false, Message = "E-mail já existe na empresa" });
             // Normaliza e-mail para lowercase antes de salvar
@@ -306,9 +309,9 @@ public class AuthController : ControllerBase
             await _context.SaveChangesAsync();
             // Envia invite com HTML e link pro front (paleta rosa VEA)
             var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "https://vea-nine.vercel.app";
-            var inviteLink = $"{frontendUrl}/employee/activate/{employee.Id}?token={GenerateTempToken(employee.Email)}";
+            var inviteLink = $"{frontendUrl}/employee/activate/{employee.Id}?token={GenerateTempToken(employee.Email!)}";
             var htmlBody = GenerateInviteHtml(inviteLink, employee.Name ?? "Funcionário");
-            _ = _emailService.SendInviteEmail(employee.Email, "Convite VEA - Crie sua senha", htmlBody);            // Adiciona role = "Employee", companyId = employee.CompanyId
+            _ = _emailService.SendInviteEmail(employee.Email!, "Convite VEA - Crie sua senha", htmlBody);            // Adiciona role = "Employee", companyId = employee.CompanyId
             return Ok(new ApiResponse<object>
             {
                 Success = true,
@@ -406,10 +409,10 @@ public class AuthController : ControllerBase
                 _logger.LogError("Configuração JWT inválida");
                 return StatusCode(500, new ApiResponse<object> { Success = false, Message = "Erro interno: Configuração JWT inválida." });
             }
-            var loginEmailLower = login.Email?.Trim().ToLowerInvariant();
-            var company = await _context.Companies.FirstOrDefaultAsync(c => c.Email.ToLower() == loginEmailLower); // <<< FIX: ToLower()
-            var employee = await _context.Employees.FirstOrDefaultAsync(e => e.Email.ToLower() == loginEmailLower); // <<< FIX: ToLower()
-            var client = await _context.Clients.FirstOrDefaultAsync(c => c.Email.ToLower() == loginEmailLower); // <<< FIX: ToLower()
+            var loginEmailLower = login.Email?.Trim().ToLowerInvariant() ?? "";
+            var company = await _context.Companies.FirstOrDefaultAsync(c => c.Email != null && c.Email.ToLower() == loginEmailLower);
+            var employee = await _context.Employees.FirstOrDefaultAsync(e => e.Email != null && e.Email.ToLower() == loginEmailLower);
+            var client = await _context.Clients.FirstOrDefaultAsync(c => c.Email != null && c.Email.ToLower() == loginEmailLower);
             if (company == null && employee == null && client == null)
             {
                 return Unauthorized(new ApiResponse<object> { Success = false, Message = "Usuário não encontrado." });
@@ -522,12 +525,12 @@ public class AuthController : ControllerBase
         {
             if (string.IsNullOrEmpty(email)) return BadRequest(new ApiResponse<object> { Success = false, Message = "E-mail é obrigatório" });
             var emailLower = email.Trim().ToLowerInvariant();
-            var company = await _context.Companies.FirstOrDefaultAsync(c => c.Email.ToLower() == emailLower && !c.IsActive); // <<< FIX: ToLower()
+            var company = await _context.Companies.FirstOrDefaultAsync(c => c.Email != null && c.Email.ToLower() == emailLower && !c.IsActive);
             if (company == null) return NotFound(new ApiResponse<object> { Success = false, Message = "Empresa não encontrada ou já ativa" });
             var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "https://vea-nine.vercel.app";
-            var confirmLink = $"{frontendUrl}/confirm/company/{company.Id}?token={GenerateTempToken (company.Email)}";
-            var htmlBody = GenerateConfirmationHtml(confirmLink, company.Name, "empresa");
-            _ = _emailService.SendConfirmationEmail(company.Email, "Confirme sua conta VEA - Veja, Explore e Agende", htmlBody);
+            var confirmLink = $"{frontendUrl}/confirm/company/{company.Id}?token={GenerateTempToken(company.Email!)}";
+            var htmlBody = GenerateConfirmationHtml(confirmLink, company.Name ?? "Empresa", "empresa");
+            _ = _emailService.SendConfirmationEmail(company.Email!, "Confirme sua conta VEA - Veja, Explore e Agende", htmlBody);
             return Ok(new ApiResponse<object> { Success = true, Message = "E-mail de confirmação reenviado! Verifique sua caixa de entrada." });
         }
         catch (Exception ex)

@@ -16,7 +16,7 @@ using Microsoft.AspNetCore.Http;
 using BCrypt.Net; // Adicionado para hash de senha
 using VEA.API.Models.Dtos; // Pro EmployeeDto
 
-// Novos DTOs pra ativação
+// Novos DTOs pra ativaï¿½ï¿½o
 public class ActivateEmployeeDto
 {
     public string Token { get; set; } = string.Empty;
@@ -56,10 +56,10 @@ public class EmployeesController : ControllerBase
         var employeeDtos = employees.Select(e => new EmployeeDto
         {
             Id = e.Id,
-            Name = e.Name,
-            Email = e.Email,
+            Name = e.Name ?? string.Empty,
+            Email = e.Email ?? string.Empty,
             Phone = e.Phone,
-            RoleId = e.RoleId ?? 0, // Fix CS0266: fallback se nullable
+            RoleId = e.RoleId ?? 0,
             EmailVerified = e.EmailVerified,
             RoleName = e.Role?.Name,
             FullPhotoUrl = BuildFullPhotoUrl(e.PhotoUrl ?? "/uploads/employees/default-avatar.png")
@@ -75,14 +75,14 @@ public class EmployeesController : ControllerBase
             .Include(e => e.Role)
             .FirstOrDefaultAsync(e => e.Id == id);
         if (employee == null)
-            return NotFound(new ApiResponse<EmployeeDto> { Success = false, Message = "Funcionário não encontrado" });
+            return NotFound(new ApiResponse<EmployeeDto> { Success = false, Message = "Funcionï¿½rio nï¿½o encontrado" });
         var employeeDto = new EmployeeDto
         {
             Id = employee.Id,
-            Name = employee.Name,
-            Email = employee.Email,
+            Name = employee.Name ?? string.Empty,
+            Email = employee.Email ?? string.Empty,
             Phone = employee.Phone,
-            RoleId = employee.RoleId ?? 0, // Fix CS0266
+            RoleId = employee.RoleId ?? 0,
             EmailVerified = employee.EmailVerified,
             RoleName = employee.Role?.Name,
             FullPhotoUrl = BuildFullPhotoUrl(employee.PhotoUrl ?? "/uploads/employees/default-avatar.png")
@@ -106,7 +106,7 @@ public class EmployeesController : ControllerBase
     {
         var companyId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
         if (await _context.Employees.AnyAsync(e => e.Email == employeeDto.Email && e.CompanyId == companyId))
-            return BadRequest(new ApiResponse<EmployeeDto> { Success = false, Message = "E-mail já existe nesta empresa" });
+            return BadRequest(new ApiResponse<EmployeeDto> { Success = false, Message = "E-mail jï¿½ existe nesta empresa" });
         var employee = new Employee
         {
             CompanyId = companyId,
@@ -114,11 +114,11 @@ public class EmployeesController : ControllerBase
             Email = employeeDto.Email,
             Phone = employeeDto.Phone,
             RoleId = employeeDto.RoleId,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("temp_password"), // Hash temporário para PasswordHash
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("temp_password"), // Hash temporï¿½rio para PasswordHash
             EmailVerified = false,
-            PhotoUrl = "/uploads/employees/default-avatar.png" // Define a foto padrão por padrão
+            PhotoUrl = "/uploads/employees/default-avatar.png" // Define a foto padrï¿½o por padrï¿½o
         };
-        // Substitui a foto padrão por uma nova se enviada
+        // Substitui a foto padrï¿½o por uma nova se enviada
         if (photo != null && photo.Length > 0)
         {
             var uploadResult = await UploadPhotoAsync(photo, null);
@@ -131,7 +131,7 @@ public class EmployeesController : ControllerBase
         // Envia verification email
         var frontendUrl = "http://localhost:4200";
         var inviteLink = $"{frontendUrl}/employee/activate/{employee.Id}?token={GenerateTempToken(employee.Email ?? "")}";
-        var htmlBody = GenerateInviteHtml(inviteLink, employee.Name ?? "Funcionário");
+        var htmlBody = GenerateInviteHtml(inviteLink, employee.Name ?? "Funcionï¿½rio");
         await _emailService.SendInviteEmail(employee.Email ?? "", "Convite VEA - Crie sua senha", htmlBody);
         // Recarrega com Include pra pegar RoleName
         var savedEmployee = await _context.Employees
@@ -141,10 +141,10 @@ public class EmployeesController : ControllerBase
         var createdDto = new EmployeeDto
         {
             Id = savedEmployee!.Id,
-            Name = savedEmployee.Name,
-            Email = savedEmployee.Email,
+            Name = savedEmployee.Name ?? string.Empty,
+            Email = savedEmployee.Email ?? string.Empty,
             Phone = savedEmployee.Phone,
-            RoleId = savedEmployee.RoleId ?? 0, // Fix CS0266
+            RoleId = savedEmployee.RoleId ?? 0,
             EmailVerified = savedEmployee.EmailVerified,
             RoleName = savedEmployee.Role?.Name,
             FullPhotoUrl = BuildFullPhotoUrl(savedEmployee.PhotoUrl ?? "/uploads/employees/default-avatar.png")
@@ -158,20 +158,20 @@ public class EmployeesController : ControllerBase
         var existingEmployee = await _context.Employees
             .Include(e => e.Role)
             .FirstOrDefaultAsync(e => e.Id == id);
-        if (existingEmployee == null) return NotFound(new ApiResponse<EmployeeDto> { Success = false, Message = "Funcionário não encontrado" });
+        if (existingEmployee == null) return NotFound(new ApiResponse<EmployeeDto> { Success = false, Message = "Funcionï¿½rio nï¿½o encontrado" });
         var companyId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
         if (existingEmployee.CompanyId != companyId) return Forbid();
-        // Atualiza campos apenas se o formulário for completo
+        // Atualiza campos apenas se o formulï¿½rio for completo
         existingEmployee.Name = employeeDto.Name;
         existingEmployee.Email = employeeDto.Email;
         existingEmployee.Phone = employeeDto.Phone;
         existingEmployee.RoleId = employeeDto.RoleId;
-        // Mantém a foto existente ou usa a padrão só se nunca houve foto
+        // Mantï¿½m a foto existente ou usa a padrï¿½o sï¿½ se nunca houve foto
         if (string.IsNullOrEmpty(existingEmployee.PhotoUrl))
         {
             existingEmployee.PhotoUrl = "/uploads/employees/default-avatar.png";
         }
-        // Substitui a foto (existente ou padrão) por uma nova se enviada
+        // Substitui a foto (existente ou padrï¿½o) por uma nova se enviada
         if (photo != null && photo.Length > 0)
         {
             var oldPhotoPath = existingEmployee.PhotoUrl;
@@ -179,7 +179,7 @@ public class EmployeesController : ControllerBase
             if (!uploadResult.Success)
                 return BadRequest(new ApiResponse<EmployeeDto> { Success = false, Message = uploadResult.Message });
             existingEmployee.PhotoUrl = uploadResult.PhotoUrl;
-            // Deleta foto antiga se existir e não for a padrão
+            // Deleta foto antiga se existir e nï¿½o for a padrï¿½o
             if (!string.IsNullOrEmpty(oldPhotoPath) && oldPhotoPath != "/uploads/employees/default-avatar.png")
             {
                 var oldFullPath = Path.Combine(_env.WebRootPath, oldPhotoPath.TrimStart('/'));
@@ -190,7 +190,7 @@ public class EmployeesController : ControllerBase
             }
         }
         await _context.SaveChangesAsync();
-        // Mapeia pro DTO (já tem Include)
+        // Mapeia pro DTO (jï¿½ tem Include)
         var updatedDto = new EmployeeDto
         {
             Id = existingEmployee.Id,
@@ -210,14 +210,14 @@ public class EmployeesController : ControllerBase
     {
         var employee = await _context.Employees
             .FirstOrDefaultAsync(e => e.Id == id);
-        if (employee == null) return NotFound(new ApiResponse<Employee> { Success = false, Message = "Funcionário não encontrado" });
+        if (employee == null) return NotFound(new ApiResponse<Employee> { Success = false, Message = "Funcionï¿½rio nï¿½o encontrado" });
         var companyId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
         if (employee.CompanyId != companyId) return Forbid();
         bool hasPendingAppointments = await _context.Appointments
             .AnyAsync(a => a.EmployeeId == id && a.Status != "Cancelled");
         if (hasPendingAppointments)
-            return BadRequest(new ApiResponse<Employee> { Success = false, Message = "Funcionário tem agendamentos pendentes" });
-        // Deleta foto se existir e não for a padrão
+            return BadRequest(new ApiResponse<Employee> { Success = false, Message = "Funcionï¿½rio tem agendamentos pendentes" });
+        // Deleta foto se existir e nï¿½o for a padrï¿½o
         if (!string.IsNullOrEmpty(employee.PhotoUrl) && employee.PhotoUrl != "/uploads/employees/default-avatar.png")
         {
             var photoFullPath = Path.Combine(_env.WebRootPath, employee.PhotoUrl.TrimStart('/'));
@@ -228,47 +228,47 @@ public class EmployeesController : ControllerBase
         }
         _context.Employees.Remove(employee);
         await _context.SaveChangesAsync();
-        return Ok(new ApiResponse<Employee> { Success = true, Message = "Funcionário deletado com sucesso" });
+        return Ok(new ApiResponse<Employee> { Success = true, Message = "Funcionï¿½rio deletado com sucesso" });
     }
 
     [HttpPost("{id}/verify-email")]
     public async Task<ActionResult<ApiResponse<object>>> SendVerificationEmail(int id)
     {
         var employee = await _context.Employees.FirstOrDefaultAsync(e => e.Id == id);
-        if (employee == null || employee.EmailVerified) return BadRequest(new ApiResponse<object> { Success = false, Message = "Funcionário inválido ou já verificado" });
+        if (employee == null || employee.EmailVerified) return BadRequest(new ApiResponse<object> { Success = false, Message = "Funcionï¿½rio invï¿½lido ou jï¿½ verificado" });
         var companyId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
         if (employee.CompanyId != companyId) return Forbid();
         var frontendUrl = "http://localhost:4200";
         var inviteLink = $"{frontendUrl}/employee/activate/{employee.Id}?token={GenerateTempToken(employee.Email ?? "")}";
-        var htmlBody = GenerateInviteHtml(inviteLink, employee.Name ?? "Funcionário");
+        var htmlBody = GenerateInviteHtml(inviteLink, employee.Name ?? "Funcionï¿½rio");
         await _emailService.SendInviteEmail(employee.Email ?? "", "Reenvio: Convite VEA - Crie sua senha", htmlBody);
-        return Ok(new ApiResponse<object> { Success = true, Message = "Email de verificação reenviado!" });
+        return Ok(new ApiResponse<object> { Success = true, Message = "Email de verificaï¿½ï¿½o reenviado!" });
     }
 
-    // NOVO: GET anônimo pra dados de ativação (valida token)
+    // NOVO: GET anï¿½nimo pra dados de ativaï¿½ï¿½o (valida token)
     [AllowAnonymous]
     [HttpGet("{id}/activation-data")]
     public async Task<ActionResult<ApiResponse<ActivationDataDto>>> GetActivationData(int id, [FromQuery] string token)
     {
         var employee = await _context.Employees.FirstOrDefaultAsync(e => e.Id == id && !e.EmailVerified);
         if (employee == null)
-            return NotFound(new ApiResponse<ActivationDataDto> { Success = false, Message = "Conta não encontrada ou já ativada." });
+            return NotFound(new ApiResponse<ActivationDataDto> { Success = false, Message = "Conta nï¿½o encontrada ou jï¿½ ativada." });
 
-        // Valida token simples (sem expiração por agora)
+        // Valida token simples (sem expiraï¿½ï¿½o por agora)
         if (!ValidateTempToken(employee.Email ?? "", token))
-            return Unauthorized(new ApiResponse<ActivationDataDto> { Success = false, Message = "Token inválido. Verifique o link do e-mail." });
+            return Unauthorized(new ApiResponse<ActivationDataDto> { Success = false, Message = "Token invï¿½lido. Verifique o link do e-mail." });
 
         var data = new ActivationDataDto
         {
             Id = employee.Id,
-            Name = employee.Name,
-            Email = employee.Email ?? ""
+            Name = employee.Name ?? string.Empty,
+            Email = employee.Email ?? string.Empty
         };
 
         return Ok(new ApiResponse<ActivationDataDto> { Success = true, Data = data });
     }
 
-    // NOVO: POST anônimo pra ativar com senha
+    // NOVO: POST anï¿½nimo pra ativar com senha
     [AllowAnonymous]
     [HttpPost("{id}/activate")]
     public async Task<ActionResult<ApiResponse<EmployeeDto>>> ActivateEmployee(int id, [FromBody] ActivateEmployeeDto dto)
@@ -278,11 +278,11 @@ public class EmployeesController : ControllerBase
 
         var employee = await _context.Employees.FirstOrDefaultAsync(e => e.Id == id && !e.EmailVerified);
         if (employee == null)
-            return NotFound(new ApiResponse<EmployeeDto> { Success = false, Message = "Conta não encontrada ou já ativada." });
+            return NotFound(new ApiResponse<EmployeeDto> { Success = false, Message = "Conta nï¿½o encontrada ou jï¿½ ativada." });
 
-        // Valida token (sem expiração por agora)
+        // Valida token (sem expiraï¿½ï¿½o por agora)
         if (!ValidateTempToken(employee.Email ?? "", dto.Token))
-            return Unauthorized(new ApiResponse<EmployeeDto> { Success = false, Message = "Token inválido. Solicite um novo e-mail." });
+            return Unauthorized(new ApiResponse<EmployeeDto> { Success = false, Message = "Token invï¿½lido. Solicite um novo e-mail." });
 
         // Hash da senha e ativa
         employee.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
@@ -298,8 +298,8 @@ public class EmployeesController : ControllerBase
         var activatedDto = new EmployeeDto
         {
             Id = activatedEmployee!.Id,
-            Name = activatedEmployee.Name,
-            Email = activatedEmployee.Email,
+            Name = activatedEmployee.Name ?? string.Empty,
+            Email = activatedEmployee.Email ?? string.Empty,
             Phone = activatedEmployee.Phone,
             RoleId = activatedEmployee.RoleId ?? 0,
             EmailVerified = activatedEmployee.EmailVerified,
@@ -307,29 +307,29 @@ public class EmployeesController : ControllerBase
             FullPhotoUrl = BuildFullPhotoUrl(activatedEmployee.PhotoUrl ?? "/uploads/employees/default-avatar.png")
         };
 
-        return Ok(new ApiResponse<EmployeeDto> { Success = true, Data = activatedDto, Message = "Conta ativada com sucesso! Você pode fazer login." });
+        return Ok(new ApiResponse<EmployeeDto> { Success = true, Data = activatedDto, Message = "Conta ativada com sucesso! Vocï¿½ pode fazer login." });
     }
 
     // Helper: Upload de foto ajustado pra pasta uploads/employees
     private async Task<(bool Success, string PhotoUrl, string Message)> UploadPhotoAsync(IFormFile photo, string? employeeId)
     {
-        // Validações
+        // Validaï¿½ï¿½es
         if (photo == null || photo.Length == 0) return (false, "", "Nenhum arquivo selecionado");
         var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif" };
         var extension = Path.GetExtension(photo.FileName).ToLowerInvariant();
         if (!allowedExtensions.Contains(extension))
-            return (false, "", "Apenas imagens JPG, PNG ou GIF são permitidas");
+            return (false, "", "Apenas imagens JPG, PNG ou GIF sï¿½o permitidas");
         if (photo.Length > 5 * 1024 * 1024) // 5MB
-            return (false, "", "Arquivo muito grande (máx 5MB)");
+            return (false, "", "Arquivo muito grande (mï¿½x 5MB)");
         try
         {
             var uploadsFolder = Path.Combine(_env.WebRootPath, "uploads", "employees");
             if (!Directory.Exists(uploadsFolder))
             {
-                Directory.CreateDirectory(uploadsFolder); // Cria a pasta se não existir
+                Directory.CreateDirectory(uploadsFolder); // Cria a pasta se nï¿½o existir
                 Console.WriteLine($"Pasta criada: {uploadsFolder}"); // Debug
             }
-            // Nome único: employeeId_timestamp_extension (se employeeId null, usa "new")
+            // Nome ï¿½nico: employeeId_timestamp_extension (se employeeId null, usa "new")
             var fileName = string.IsNullOrEmpty(employeeId) ? $"new_{DateTime.Now.Ticks}{extension}" : $"{employeeId}_{DateTime.Now.Ticks}{extension}";
             var filePath = Path.Combine(uploadsFolder, fileName);
             var relativeUrl = $"/uploads/employees/{fileName}"; // URL relativa pro front
@@ -349,7 +349,7 @@ public class EmployeesController : ControllerBase
         }
     }
 
-    // Helper: Constrói URL completa (dinâmica pra dev/prod)
+    // Helper: Constrï¿½i URL completa (dinï¿½mica pra dev/prod)
     private string BuildFullPhotoUrl(string relativePath)
     {
         return $"{Request.Scheme}://{Request.Host}{relativePath}";
@@ -358,11 +358,11 @@ public class EmployeesController : ControllerBase
     // Helpers copiados do Auth
     private string GenerateTempToken(string email) => Convert.ToBase64String(Encoding.UTF8.GetBytes(email ?? "" + " " + DateTime.Now.Ticks));
 
-    // NOVO: Helper pra validar token (com comentário pra expiração)
+    // NOVO: Helper pra validar token (com comentï¿½rio pra expiraï¿½ï¿½o)
     private bool ValidateTempToken(string email, string providedToken)
     {
         var expectedToken = GenerateTempToken(email);
-        // Pra expiração de 24h: armazene o timestamp no DB ao criar, e compare aqui (ex: if (DateTime.Now - createdAt > TimeSpan.FromHours(24)) return false;)
+        // Pra expiraï¿½ï¿½o de 24h: armazene o timestamp no DB ao criar, e compare aqui (ex: if (DateTime.Now - createdAt > TimeSpan.FromHours(24)) return false;)
         return expectedToken == providedToken;
     }
 
@@ -386,11 +386,11 @@ public class EmployeesController : ControllerBase
 <body>
     <div class='container'>
         <h1 class='header'>Convite para o VEA!</h1>
-        <p class='greeting'>Olá, <strong>{name}</strong>,</p>
-        <p>Você foi convidado para a equipe no VEA - Veja, Explore e Agende, o sistema que automatiza agendamentos e centraliza a gestão de atendimentos. Ative sua conta para acessar sua agenda e serviços  – facilite o dia a dia da empresa com eficiência e visibilidade!</p>
+        <p class='greeting'>Olï¿½, <strong>{name}</strong>,</p>
+        <p>Vocï¿½ foi convidado para a equipe no VEA - Veja, Explore e Agende, o sistema que automatiza agendamentos e centraliza a gestï¿½o de atendimentos. Ative sua conta para acessar sua agenda e serviï¿½os  ï¿½ facilite o dia a dia da empresa com eficiï¿½ncia e visibilidade!</p>
         <a href='{inviteLink}' class='button'>Ativar e Criar Senha</a>
-        <p class='link-fallback'>Se o botão não funcionar, copie e cole este link no navegador:<br><small>{inviteLink}</small></p>
-        <p>Essa ativação expira em 24h. Qualquer dúvida, responda este email!</p>
+        <p class='link-fallback'>Se o botï¿½o nï¿½o funcionar, copie e cole este link no navegador:<br><small>{inviteLink}</small></p>
+        <p>Essa ativaï¿½ï¿½o expira em 24h. Qualquer dï¿½vida, responda este email!</p>
         <div class='footer'>
             <p>Atenciosamente,<br>Equipe VEA - Veja, Explore e Agende</p>
             <img src='https://via.placeholder.com/100x50/DB2777/FFFFFF?text=VEA' alt='Logo VEA' style='width: 100px; border-radius: 5px;'>

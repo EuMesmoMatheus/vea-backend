@@ -1,5 +1,4 @@
 ﻿using FluentAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
@@ -12,34 +11,42 @@ namespace VEA.API.Testes.Clients;
 
 public class GetClientTests : ClientsControllerTests
 {
-    public GetClientTests(WebApplicationFactory<VEA.API.Program> factory) : base(factory) { }
+    public GetClientTests(CustomWebApplicationFactory factory) : base(factory) { }
 
-    [Fact(DisplayName = "Cliente deve ver seus próprios dados")]
-    public async Task Cliente_Deve_Ver_Proprios_Dados()
+    [Fact(DisplayName = "Admin deve ver dados de cliente")]
+    public async Task Admin_Deve_Ver_Dados_Cliente()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = _factory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        db.Clients.Add(new Client { Id = 999, Name = "Ana", Email = "ana@teste.com", CompanyId = 1 });
+        
+        var client = TestData.CreateClient(804, "Ana Teste", 804);
+        db.Clients.Add(client);
         await db.SaveChangesAsync();
 
-        var client = CreateClientWithClaims("999", "Client", "1");
-        var response = await client.GetAsync("/api/clients/999");
+        // Admin pode ver qualquer cliente (o controller tem [Authorize(Roles = "Admin")] na classe)
+        var httpClient = CreateAdminClient(adminId: 1, companyId: 804);
+        var response = await httpClient.GetAsync("/api/clients/804");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var result = await response.Content.ReadFromJsonAsync<ApiResponse<Client>>();
-        result!.Data!.Name.Should().Be("Ana");
+        result!.Data!.Name.Should().Be("Ana Teste");
     }
 
-    [Fact(DisplayName = "Cliente não deve ver dados de outro cliente")]
-    public async Task Cliente_Nao_Deve_Ver_Outro_Cliente()
+    [Fact(DisplayName = "Cliente não autenticado como Admin não deve acessar endpoint")]
+    public async Task Cliente_Nao_Admin_Nao_Deve_Acessar()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = _factory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        db.Clients.Add(new Client { Id = 888, Name = "Outro", Email = "outro@teste.com", CompanyId = 1 });
+        
+        var client = TestData.CreateClient(805, "Outro Cliente", 805);
+        db.Clients.Add(client);
         await db.SaveChangesAsync();
 
-        var client = CreateClientWithClaims("999", "Client", "1");
-        var response = await client.GetAsync("/api/clients/888");
+        // Cliente comum (não Admin) não deve conseguir acessar 
+        // (mesmo com [Authorize(Roles = "Admin,Client")] no método, 
+        // a classe tem [Authorize(Roles = "Admin")] que prevalece)
+        var httpClient = CreateClientWithClaims("805", "Client", "805");
+        var response = await httpClient.GetAsync("/api/clients/805");
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }

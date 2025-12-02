@@ -50,7 +50,7 @@ namespace VEA.API.Controllers
                 .Select(s => new ServiceDto
                 {
                     Id = s.Id,
-                    Name = s.Name,
+                    Name = s.Name ?? string.Empty,
                     Description = s.Description,
                     Duration = s.Duration,
                     Price = s.Price,
@@ -74,7 +74,7 @@ namespace VEA.API.Controllers
                 .Select(e => new EmployeeDto
                 {
                     Id = e.Id,
-                    Name = e.Name,
+                    Name = e.Name ?? string.Empty,
                     Email = e.Email ?? string.Empty,
                     Phone = e.Phone,
                     RoleName = e.Role != null ? e.Role.Name : "Profissional",
@@ -330,7 +330,7 @@ namespace VEA.API.Controllers
                 {
                     var services = await _context.Services
                         .Where(s => serviceIds.Contains(s.Id))
-                        .Select(s => new ClientServiceDto { Id = s.Id, Name = s.Name })
+                        .Select(s => new ClientServiceDto { Id = s.Id, Name = s.Name ?? string.Empty })
                         .ToListAsync();
 
                     primaryService = services.FirstOrDefault();
@@ -343,7 +343,7 @@ namespace VEA.API.Controllers
                     StartDateTime = a.StartDateTime,
                     EndDateTime = a.EndDateTime ?? a.StartDateTime.AddMinutes(a.TotalDurationMinutes),
                     Status = a.Status,
-                    Employee = a.Employee != null ? new ClientEmployeeDto { Id = a.Employee.Id, Name = a.Employee.Name } : null,
+                    Employee = a.Employee != null ? new ClientEmployeeDto { Id = a.Employee.Id, Name = a.Employee.Name ?? string.Empty } : null,
                     Service = primaryService,
                     Services = allServices
                 });

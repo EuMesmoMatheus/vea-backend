@@ -39,9 +39,9 @@ public class CompaniesController : ControllerBase
         if (!string.IsNullOrEmpty(location))
         {
             query = query.Where(c => c.Address != null &&
-                                     (c.Address.Logradouro.Contains(location) ||
-                                      c.Address.Bairro.Contains(location) ||
-                                      c.Address.Cidade.Contains(location)));
+                                     ((c.Address.Logradouro != null && c.Address.Logradouro.Contains(location)) ||
+                                      (c.Address.Bairro != null && c.Address.Bairro.Contains(location)) ||
+                                      (c.Address.Cidade != null && c.Address.Cidade.Contains(location))));
         }
 
         var companies = await query.ToListAsync();
@@ -69,7 +69,7 @@ public class CompaniesController : ControllerBase
 
         foreach (var dto in companyDtos)
         {
-            if (!dto.Logo.StartsWith("http"))
+            if (!string.IsNullOrEmpty(dto.Logo) && !dto.Logo.StartsWith("http"))
                 dto.Logo = $"{baseUrl}{dto.Logo}";
             if (!string.IsNullOrEmpty(dto.CoverImage) && !dto.CoverImage.StartsWith("http"))
                 dto.CoverImage = $"{baseUrl}{dto.CoverImage}";
@@ -87,7 +87,7 @@ public class CompaniesController : ControllerBase
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (company == null)
-            return NotFound(new ApiResponse<CompanyDto> { Success = false, Message = "Empresa não encontrada" });
+            return NotFound(new ApiResponse<CompanyDto> { Success = false, Message = "Empresa nï¿½o encontrada" });
 
         var baseUrl = $"{Request.Scheme}://{Request.Host}";
         var dto = new CompanyDto
@@ -123,10 +123,10 @@ public class CompaniesController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(dto.Name) || string.IsNullOrWhiteSpace(dto.Email) ||
             string.IsNullOrWhiteSpace(dto.Phone) || string.IsNullOrWhiteSpace(dto.Password))
-            return BadRequest(new ApiResponse<Company> { Success = false, Message = "Nome, email, telefone e senha são obrigatórios." });
+            return BadRequest(new ApiResponse<Company> { Success = false, Message = "Nome, email, telefone e senha sï¿½o obrigatï¿½rios." });
 
         if (await _context.Companies.AnyAsync(c => c.Email == dto.Email))
-            return BadRequest(new ApiResponse<Company> { Success = false, Message = "E-mail já existe." });
+            return BadRequest(new ApiResponse<Company> { Success = false, Message = "E-mail jï¿½ existe." });
 
         Address? address = null;
         if (!string.IsNullOrEmpty(dto.Cep) && !string.IsNullOrEmpty(dto.Logradouro) &&
@@ -134,7 +134,7 @@ public class CompaniesController : ControllerBase
             !string.IsNullOrEmpty(dto.Cidade) && !string.IsNullOrEmpty(dto.Uf))
         {
             if (!Regex.IsMatch(dto.Cep, @"^\d{5}-\d{3}$"))
-                return BadRequest(new ApiResponse<Company> { Success = false, Message = "CEP inválido. Use formato 00000-000" });
+                return BadRequest(new ApiResponse<Company> { Success = false, Message = "CEP invï¿½lido. Use formato 00000-000" });
 
             address = new Address
             {
@@ -191,7 +191,7 @@ public class CompaniesController : ControllerBase
     public async Task<ActionResult<ApiResponse<Company>>> CreateCompany([FromBody] Company company)
     {
         if (await _context.Companies.AnyAsync(c => c.Email == company.Email))
-            return BadRequest(new ApiResponse<Company> { Success = false, Message = "E-mail já existe" });
+            return BadRequest(new ApiResponse<Company> { Success = false, Message = "E-mail jï¿½ existe" });
 
         company.PasswordHash = BCrypt.Net.BCrypt.HashPassword(company.PasswordHash ?? Guid.NewGuid().ToString());
         company.IsActive = true;
@@ -219,13 +219,13 @@ public class CompaniesController : ControllerBase
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (company == null)
-            return NotFound(new ApiResponse<Company> { Success = false, Message = "Empresa não encontrada" });
+            return NotFound(new ApiResponse<Company> { Success = false, Message = "Empresa nï¿½o encontrada" });
 
         if (!string.IsNullOrEmpty(dto.Name)) company.Name = dto.Name;
         if (!string.IsNullOrEmpty(dto.Email))
         {
             if (await _context.Companies.AnyAsync(c => c.Email == dto.Email && c.Id != id))
-                return BadRequest(new ApiResponse<Company> { Success = false, Message = "E-mail já existe" });
+                return BadRequest(new ApiResponse<Company> { Success = false, Message = "E-mail jï¿½ existe" });
             company.Email = dto.Email;
         }
         if (!string.IsNullOrEmpty(dto.Phone)) company.Phone = dto.Phone;
@@ -238,8 +238,8 @@ public class CompaniesController : ControllerBase
 
         if (hasFullAddress)
         {
-            if (!Regex.IsMatch(dto.Cep, @"^\d{5}-\d{3}$"))
-                return BadRequest(new ApiResponse<Company> { Success = false, Message = "CEP inválido" });
+            if (!Regex.IsMatch(dto.Cep!, @"^\d{5}-\d{3}$"))
+                return BadRequest(new ApiResponse<Company> { Success = false, Message = "CEP invÃ¡lido" });
 
             if (company.Address == null)
             {
@@ -299,16 +299,16 @@ public class CompaniesController : ControllerBase
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (company == null)
-            return NotFound(new ApiResponse<Company> { Success = false, Message = "Empresa não encontrada" });
+            return NotFound(new ApiResponse<Company> { Success = false, Message = "Empresa nï¿½o encontrada" });
 
         if (company.Employees.Any())
-            return BadRequest(new ApiResponse<Company> { Success = false, Message = "Não é possível deletar: empresa possui funcionários" });
+            return BadRequest(new ApiResponse<Company> { Success = false, Message = "Nï¿½o ï¿½ possï¿½vel deletar: empresa possui funcionï¿½rios" });
 
         var hasActiveAppointments = await _context.Appointments
             .AnyAsync(a => a.CompanyId == id && (a.Status == "Scheduled" || a.Status == "Pending"));
 
         if (hasActiveAppointments)
-            return BadRequest(new ApiResponse<Company> { Success = false, Message = "Não é possível deletar: empresa possui agendamentos ativos" });
+            return BadRequest(new ApiResponse<Company> { Success = false, Message = "Nï¿½o ï¿½ possï¿½vel deletar: empresa possui agendamentos ativos" });
 
         _context.Companies.Remove(company);
         await _context.SaveChangesAsync();

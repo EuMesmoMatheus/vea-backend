@@ -25,11 +25,11 @@ public class ServicesController : ControllerBase
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    // GET: Lista serviços (use DTO pra leveza) - <<< FIX: Route pra /company/{companyId}
-    [HttpGet("company/{companyId}")] // <<< FIX: Suporte à URL do erro, com [FromRoute]
+    // GET: Lista serviï¿½os (use DTO pra leveza) - <<< FIX: Route pra /company/{companyId}
+    [HttpGet("company/{companyId}")] // <<< FIX: Suporte ï¿½ URL do erro, com [FromRoute]
     public async Task<ActionResult<ApiResponse<List<ServiceDto>>>> GetServices(int companyId, [FromQuery] bool includeInactive = false)
     {
-        // <<< NOVO LOG: Início do método
+        // <<< NOVO LOG: Inï¿½cio do mï¿½todo
         _logger.LogInformation($"[DEBUG Services {nameof(GetServices)}] Request: CompanyId={companyId}, IncludeInactive={includeInactive}");
 
         // FIX: Use custom claim "companyId" (lowercase, como no Auth)
@@ -44,23 +44,23 @@ public class ServicesController : ControllerBase
         {
             // <<< NOVO LOG: No 403
             _logger.LogWarning($"[DEBUG Services {nameof(GetServices)}] Unauthorized: user companyId={userCompanyId} != requested {companyId}. User: {User.Identity?.Name ?? "Anonymous"}");
-            return StatusCode(403, new ApiResponse<List<ServiceDto>> { Success = false, Message = "Acesso negado: empresa não autorizada" });
+            return StatusCode(403, new ApiResponse<List<ServiceDto>> { Success = false, Message = "Acesso negado: empresa nï¿½o autorizada" });
         }
 
         var query = _context.Services
           .Where(s => s.CompanyId == companyId);
         if (!includeInactive)
             query = query.Where(s => s.Active);
-        var services = await query.Select(s => new ServiceDto // <-- Mapeie pra DTO
+        var services = await query.Select(s => new ServiceDto
         {
             Id = s.Id,
-            Name = s.Name,
+            Name = s.Name ?? string.Empty,
             Description = s.Description,
             Duration = s.Duration,
             Price = s.Price,
             CompanyId = s.CompanyId,
             Active = s.Active,
-            EmployeeIds = s.Employees.Select(e => e.Id).ToList() // Só IDs, leve
+            EmployeeIds = s.Employees.Select(e => e.Id).ToList()
         }).ToListAsync();
 
         _logger.LogInformation($"[DEBUG Services {nameof(GetServices)}] Success: {services.Count} services loaded for company {companyId}");
@@ -71,16 +71,16 @@ public class ServicesController : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<ApiResponse<ServiceDto>>> GetService(int id)
     {
-        // <<< NOVO LOG: Início
+        // <<< NOVO LOG: Inï¿½cio
         _logger.LogInformation($"[DEBUG Services {nameof(GetService)}] Request: ServiceId={id}");
 
         var service = await _context.Services
-          .Include(s => s.Employees) // Include só pra mapear IDs
+          .Include(s => s.Employees) // Include sï¿½ pra mapear IDs
           .FirstOrDefaultAsync(s => s.Id == id);
         if (service == null)
         {
             _logger.LogWarning($"[DEBUG Services {nameof(GetService)}] Service not found: {id}");
-            return NotFound(new ApiResponse<ServiceDto> { Success = false, Message = "Serviço não encontrado" });
+            return NotFound(new ApiResponse<ServiceDto> { Success = false, Message = "Serviï¿½o nï¿½o encontrado" });
         }
 
         // FIX: lowercase claim + TryParse
@@ -95,12 +95,12 @@ public class ServicesController : ControllerBase
         {
             // <<< NOVO LOG: No 403
             _logger.LogWarning($"[DEBUG Services {nameof(GetService)}] Unauthorized: service companyId={service.CompanyId} != user {userCompanyId}");
-            return StatusCode(403, new ApiResponse<ServiceDto> { Success = false, Message = "Acesso negado: serviço não autorizado" });
+            return StatusCode(403, new ApiResponse<ServiceDto> { Success = false, Message = "Acesso negado: serviï¿½o nï¿½o autorizado" });
         }
-        var dto = new ServiceDto // <-- Mapeie
+        var dto = new ServiceDto
         {
             Id = service.Id,
-            Name = service.Name,
+            Name = service.Name ?? string.Empty,
             Description = service.Description,
             Duration = service.Duration,
             Price = service.Price,
@@ -116,7 +116,7 @@ public class ServicesController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<ApiResponse<ServiceDto>>> CreateService([FromBody] Service service)
     {
-        // <<< NOVO LOG: Início
+        // <<< NOVO LOG: Inï¿½cio
         _logger.LogInformation($"[DEBUG Services {nameof(CreateService)}] Request: Name={service.Name}, CompanyId={service.CompanyId}");
 
         // FIX: lowercase claim + TryParse
@@ -130,15 +130,15 @@ public class ServicesController : ControllerBase
         {
             // <<< NOVO LOG: No 403
             _logger.LogWarning($"[DEBUG Services {nameof(CreateService)}] Unauthorized: service companyId={service.CompanyId} != user {userCompanyId}");
-            return StatusCode(403, new ApiResponse<ServiceDto> { Success = false, Message = "Acesso negado: empresa não autorizada" });
+            return StatusCode(403, new ApiResponse<ServiceDto> { Success = false, Message = "Acesso negado: empresa nï¿½o autorizada" });
         }
-        // Validações
+        // Validaï¿½ï¿½es
         if (string.IsNullOrEmpty(service.Name))
-            return BadRequest(new ApiResponse<ServiceDto> { Success = false, Message = "Nome é obrigatório" });
+            return BadRequest(new ApiResponse<ServiceDto> { Success = false, Message = "Nome ï¿½ obrigatï¿½rio" });
         if (service.Duration <= 0)
-            return BadRequest(new ApiResponse<ServiceDto> { Success = false, Message = "Duração deve ser maior que 0 minutos" });
+            return BadRequest(new ApiResponse<ServiceDto> { Success = false, Message = "Duraï¿½ï¿½o deve ser maior que 0 minutos" });
         if (service.Price < 0)
-            return BadRequest(new ApiResponse<ServiceDto> { Success = false, Message = "Preço deve ser maior ou igual a 0" });
+            return BadRequest(new ApiResponse<ServiceDto> { Success = false, Message = "Preï¿½o deve ser maior ou igual a 0" });
         service.Active = true;
         _context.Services.Add(service);
         try
@@ -150,8 +150,8 @@ public class ServicesController : ControllerBase
               .FirstOrDefaultAsync(s => s.Id == service.Id);
             var dto = new ServiceDto
             {
-                Id = created.Id,
-                Name = created.Name,
+                Id = created!.Id,
+                Name = created.Name ?? string.Empty,
                 Description = created.Description,
                 Duration = created.Duration,
                 Price = created.Price,
@@ -174,19 +174,19 @@ public class ServicesController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateService(int id, [FromBody] Service service)
     {
-        // <<< NOVO LOG: Início
+        // <<< NOVO LOG: Inï¿½cio
         _logger.LogInformation($"[DEBUG Services {nameof(UpdateService)}] Request: ServiceId={id}, Name={service.Name ?? "unchanged"}");
 
         if (id != service.Id)
         {
             _logger.LogWarning($"[DEBUG Services {nameof(UpdateService)}] ID mismatch: path={id}, body={service.Id}");
-            return BadRequest(new ApiResponse<ServiceDto> { Success = false, Message = "ID do serviço não corresponde" });
+            return BadRequest(new ApiResponse<ServiceDto> { Success = false, Message = "ID do serviï¿½o nï¿½o corresponde" });
         }
         var existingService = await _context.Services.Include(s => s.Employees).FirstOrDefaultAsync(s => s.Id == id);
         if (existingService == null)
         {
             _logger.LogWarning($"[DEBUG Services {nameof(UpdateService)}] Service not found: {id}");
-            return NotFound(new ApiResponse<ServiceDto> { Success = false, Message = "Serviço não encontrado" });
+            return NotFound(new ApiResponse<ServiceDto> { Success = false, Message = "Serviï¿½o nï¿½o encontrado" });
         }
 
         // FIX: lowercase claim + TryParse
@@ -200,7 +200,7 @@ public class ServicesController : ControllerBase
         {
             // <<< NOVO LOG: No 403
             _logger.LogWarning($"[DEBUG Services {nameof(UpdateService)}] Unauthorized: service companyId={existingService.CompanyId} != user {userCompanyId}");
-            return StatusCode(403, new ApiResponse<ServiceDto> { Success = false, Message = "Acesso negado: serviço não autorizado" });
+            return StatusCode(403, new ApiResponse<ServiceDto> { Success = false, Message = "Acesso negado: serviï¿½o nï¿½o autorizado" });
         }
         // Atualiza
         existingService.Name = service.Name ?? existingService.Name;
@@ -219,7 +219,7 @@ public class ServicesController : ControllerBase
         var dto = new ServiceDto
         {
             Id = existingService.Id,
-            Name = existingService.Name,
+            Name = existingService.Name ?? string.Empty,
             Description = existingService.Description,
             Duration = existingService.Duration,
             Price = existingService.Price,
@@ -227,7 +227,7 @@ public class ServicesController : ControllerBase
             Active = existingService.Active,
             EmployeeIds = existingService.Employees.Select(e => e.Id).ToList()
         };
-        _logger.LogInformation($"[DEBUG Services {nameof(UpdateService)}] Success: Updated service {id}");
+        _logger.LogInformation("[DEBUG Services {Method}] Success: Updated service {Id}", nameof(UpdateService), id);
         return Ok(new ApiResponse<ServiceDto> { Success = true, Data = dto });
     }
 
@@ -235,14 +235,14 @@ public class ServicesController : ControllerBase
     [HttpPatch("{id}/active")]
     public async Task<IActionResult> ToggleServiceActive(int id, [FromBody] bool active)
     {
-        // <<< NOVO LOG: Início
+        // <<< NOVO LOG: Inï¿½cio
         _logger.LogInformation($"[DEBUG Services {nameof(ToggleServiceActive)}] Request: ServiceId={id}, Active={active}");
 
         var service = await _context.Services.Include(s => s.Employees).FirstOrDefaultAsync(s => s.Id == id);
         if (service == null)
         {
             _logger.LogWarning($"[DEBUG Services {nameof(ToggleServiceActive)}] Service not found: {id}");
-            return NotFound(new ApiResponse<ServiceDto> { Success = false, Message = "Serviço não encontrado" });
+            return NotFound(new ApiResponse<ServiceDto> { Success = false, Message = "Serviï¿½o nï¿½o encontrado" });
         }
 
         // FIX: lowercase claim + TryParse
@@ -256,14 +256,14 @@ public class ServicesController : ControllerBase
         {
             // <<< NOVO LOG: No 403
             _logger.LogWarning($"[DEBUG Services {nameof(ToggleServiceActive)}] Unauthorized: service companyId={service.CompanyId} != user {userCompanyId}");
-            return StatusCode(403, new ApiResponse<ServiceDto> { Success = false, Message = "Acesso negado: serviço não autorizado" });
+            return StatusCode(403, new ApiResponse<ServiceDto> { Success = false, Message = "Acesso negado: serviï¿½o nï¿½o autorizado" });
         }
         service.Active = active;
         await _context.SaveChangesAsync();
         var dto = new ServiceDto
         {
             Id = service.Id,
-            Name = service.Name,
+            Name = service.Name ?? string.Empty,
             Description = service.Description,
             Duration = service.Duration,
             Price = service.Price,
@@ -271,16 +271,16 @@ public class ServicesController : ControllerBase
             Active = service.Active,
             EmployeeIds = service.Employees.Select(e => e.Id).ToList()
         };
-        var message = active ? "Serviço ativado com sucesso" : "Serviço desativado (oculto do hub)";
+        var message = active ? "Serviï¿½o ativado com sucesso" : "Serviï¿½o desativado (oculto do hub)";
         _logger.LogInformation($"[DEBUG Services {nameof(ToggleServiceActive)}] Success: Toggled service {id} to {active}");
         return Ok(new ApiResponse<ServiceDto> { Success = true, Data = dto, Message = message });
     }
 
-    // DELETE: Sem DTO, só message
+    // DELETE: Sem DTO, sï¿½ message
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteService(int id)
     {
-        // <<< NOVO LOG: Início
+        // <<< NOVO LOG: Inï¿½cio
         _logger.LogInformation($"[DEBUG Services {nameof(DeleteService)}] Request: ServiceId={id}");
 
         var service = await _context.Services
@@ -289,7 +289,7 @@ public class ServicesController : ControllerBase
         if (service == null)
         {
             _logger.LogWarning($"[DEBUG Services {nameof(DeleteService)}] Service not found: {id}");
-            return NotFound(new ApiResponse<object> { Success = false, Message = "Serviço não encontrado" });
+            return NotFound(new ApiResponse<object> { Success = false, Message = "Serviï¿½o nï¿½o encontrado" });
         }
 
         // FIX: lowercase claim + TryParse
@@ -303,17 +303,17 @@ public class ServicesController : ControllerBase
         {
             // <<< NOVO LOG: No 403
             _logger.LogWarning($"[DEBUG Services {nameof(DeleteService)}] Unauthorized: service companyId={service.CompanyId} != user {userCompanyId}");
-            return StatusCode(403, new ApiResponse<object> { Success = false, Message = "Acesso negado: serviço não autorizado" });
+            return StatusCode(403, new ApiResponse<object> { Success = false, Message = "Acesso negado: serviï¿½o nï¿½o autorizado" });
         }
         bool hasPendingAppointments = service.Appointments.Any(a => a.Status != "Cancelled");
         if (hasPendingAppointments)
         {
             _logger.LogWarning($"[DEBUG Services {nameof(DeleteService)}] Pending appointments for service {id}");
-            return BadRequest(new ApiResponse<object> { Success = false, Message = "Serviço tem agendamentos pendentes. Cancele-os primeiro." });
+            return BadRequest(new ApiResponse<object> { Success = false, Message = "Serviï¿½o tem agendamentos pendentes. Cancele-os primeiro." });
         }
         _context.Services.Remove(service);
         await _context.SaveChangesAsync();
         _logger.LogInformation($"[DEBUG Services {nameof(DeleteService)}] Success: Deleted service {id}");
-        return Ok(new ApiResponse<object> { Success = true, Message = "Serviço deletado com sucesso" });
+        return Ok(new ApiResponse<object> { Success = true, Message = "Serviï¿½o deletado com sucesso" });
     }
 }

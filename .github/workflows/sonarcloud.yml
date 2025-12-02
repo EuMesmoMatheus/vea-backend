@@ -11,7 +11,7 @@ jobs:
   sonarcloud:
     name: SonarCloud Scan
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
@@ -27,62 +27,99 @@ jobs:
       - name: Install SonarScanner .NET
         run: dotnet tool install --global dotnet-sonarscanner --version 8.0.1
 
-      - name: Restore
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
         run: dotnet restore
 
-      # Solução segura e oficial (sem warning de "user-controlled data")
-      - name: Define Sonar PR parameters (safe way)
-        id: sonar_params
+      # Extrai parâmetros de PR de forma segura (sem interpolação direta)
+      - name: Set PR parameters
+        id: pr_info
+        if: github.event_name == 'pull_request'
         run: |
-          echo "pr_key=${{ github.event.pull_request.number || '' }}" >> $GITHUB_OUTPUT
-          echo "pr_branch=${{ github.head_ref || '' }}" >> $GITHUB_OUTPUT
-          echo "pr_base=${{ github.base_ref || '' }}" >> $GITHUB_OUTPUT
-
-      - name: Export Sonar PR variables to environment
-        run: |
-          echo "SONAR_PR_KEY=${{ steps.sonar_params.outputs.pr_key }}" >> $GITHUB_ENV
-          echo "SONAR_PR_BRANCH=${{ steps.sonar_params.outputs.pr_branch }}" >> $GITHUB_ENV
-          echo "SONAR_PR_BASE=${{ steps.sonar_params.outputs.pr_base }}" >> $GITHUB_ENV
+          # Usa variáveis de ambiente do GitHub ao invés de interpolação direta
+          echo "number=${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          echo "head_ref=${GITHUB_HEAD_REF}" >> $GITHUB_OUTPUT
+          echo "base_ref=${GITHUB_BASE_REF}" >> $GITHUB_OUTPUT
 
       - name: Sonar Begin
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cmd="dotnet sonarscanner begin \
-            /k:\"EuMesmoMatheus_vea-backend\" \
-            /o:\"eumesmomatheus\" \
-            /n:\"VEA Backend API\" \
-            /d:sonar.token=\"${SONAR_TOKEN}\" \
-            /d:sonar.host.url=\"https://sonarcloud.io\" \
-            /d:sonar.scanner.scanAll=false \
-            /d:sonar.exclusions=\"**/bin/**,**/obj/**,**/*.g.cs,**/*Generated*.cs,**/Migrations/**,wwwroot/**\" \
-            /d:sonar.verbose=true"
+          SONAR_ARGS=(
+            "/k:EuMesmoMatheus_vea-backend"
+            "/o:eumesmomatheus"
+            "/n:VEA Backend API"
+            "/d:sonar.token=${SONAR_TOKEN}"
+            "/d:sonar.host.url=https://sonarcloud.io"
+            "/d:sonar.scanner.scanAll=false"
+            "/d:sonar.cs.opencover.reportsPaths=**/coverage.opencover.xml"
+            "/d:sonar.cs.vstest.reportsPaths=**/TestResults/*.trx"
+            "/d:sonar.exclusions=**/bin/**,**/obj/**,**/*.g.cs,**/*Generated*.cs,**/Migrations/**,wwwroot/**"
+            "/d:sonar.coverage.exclusions=**/Testes/**,**/Migrations/**,**/Program.cs,**/ProgramEntryPoint.cs"
+            "/d:sonar.cpd.exclusions=**/Migrations/**"
+          )
 
-          if [ -n "${SONAR_PR_KEY}" ]; then
-            cmd="$cmd /d:sonar.pullrequest.key=${SONAR_PR_KEY}"
-            cmd="$cmd /d:sonar.pullrequest.branch=${SONAR_PR_BRANCH}"
-            cmd="$cmd /d:sonar.pullrequest.base=${SONAR_PR_BASE}"
+          # Adiciona parâmetros de PR se for pull request
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            SONAR_ARGS+=(
+              "/d:sonar.pullrequest.key=${{ steps.pr_info.outputs.number }}"
+              "/d:sonar.pullrequest.branch=${{ steps.pr_info.outputs.head_ref }}"
+              "/d:sonar.pullrequest.base=${{ steps.pr_info.outputs.base_ref }}"
+            )
           fi
 
-          echo "Executando: $cmd"
-          eval "$cmd"
+          dotnet sonarscanner begin "${SONAR_ARGS[@]}"
 
       - name: Build
         run: |
           dotnet build VEA.API.csproj \
             --configuration Release \
+            --no-restore \
             /p:DebugType=full \
             /p:DebugSymbols=true \
             /p:ContinuousIntegrationBuild=true
+
+      - name: Run Tests with Coverage
+        run: |
+          dotnet test VEA.API.csproj \
+            --configuration Release \
+            --no-build \
+            --logger "trx;LogFileName=test-results.trx" \
+            --results-directory ./TestResults \
+            --collect:"XPlat Code Coverage" \
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+        env:
+          # Configuração para ambiente de teste
+          ASPNETCORE_ENVIRONMENT: Testing
 
       - name: Sonar End
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: dotnet sonarscanner end /d:sonar.token="${SONAR_TOKEN}"
 
-      - name: Resultado
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: |
+            ./TestResults/**/*.trx
+            ./TestResults/**/coverage.opencover.xml
+          retention-days: 7
+
+      - name: Test Report Summary
         if: always()
         run: |
-          echo "Análise concluída com sucesso!"
-          echo "Dashboard → https://sonarcloud.io/dashboard?id=EuMesmoMatheus_vea-backend"
+          echo "## 📊 Resultado da Análise" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Build e testes concluídos!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔗 [Ver Dashboard SonarCloud](https://sonarcloud.io/dashboard?id=EuMesmoMatheus_vea-backend)" >> $GITHUB_STEP_SUMMARY

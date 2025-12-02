@@ -1,72 +1,53 @@
 ﻿using FluentAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Moq;
-using System;
-using System.Linq;
 using System.Net;
-using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
-using VEA.API;
 using VEA.API.Data;
-using VEA.API.Services;
+using VEA.API.Models;
 using Xunit;
 
 namespace VEA.API.Testes.Auth;
 
-public class CheckEmailExistsTests : IClassFixture<WebApplicationFactory<VEA.API.Program>>
+public class CheckEmailExistsTests : IClassFixture<CustomWebApplicationFactory>
 {
-    private readonly HttpClient _client;
+    private readonly CustomWebApplicationFactory _factory;
 
-    public CheckEmailExistsTests(WebApplicationFactory<VEA.API.Program> factory)
+    public CheckEmailExistsTests(CustomWebApplicationFactory factory)
     {
-        factory = factory.WithWebHostBuilder(builder =>
-        {
-            builder.ConfigureServices(services =>
-            {
-                var descriptor = services.SingleOrDefault(d => d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>));
-                if (descriptor != null) services.Remove(descriptor);
-
-                services.AddDbContext<ApplicationDbContext>(options =>
-                    options.UseInMemoryDatabase("TestDb_CheckEmail_" + Guid.NewGuid()));
-
-                var mockEmail = new Mock<IEmailService>();
-                services.RemoveAll<IEmailService>();
-                services.AddScoped(_ => mockEmail.Object);
-            });
-        });
-
-        _client = factory.CreateClient();
+        _factory = factory;
     }
 
     [Fact(DisplayName = "CheckEmail deve retornar false para e-mail inexistente")]
     public async Task Deve_Retornar_False_Quando_Email_Nao_Existe()
     {
-        var response = await _client.GetAsync("/api/auth/check-email/naoexiste@teste.com");
+        var client = _factory.CreateClient();
+        var response = await client.GetAsync("/api/auth/check-email/emailinexistente123@teste.com");
+        
         response.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var json = await response.Content.ReadFromJsonAsync<dynamic>();
-        bool existe = json?.Data;
-        existe.Should().BeFalse();
+        var result = await response.Content.ReadFromJsonAsync<ApiResponse<bool>>();
+        result!.Data.Should().BeFalse();
     }
 
     [Fact(DisplayName = "CheckEmail deve retornar true quando e-mail já está cadastrado")]
     public async Task Deve_Retornar_True_Quando_Email_Existe()
     {
-        // Cadastra um cliente
-        await _client.PostAsJsonAsync("/api/auth/register/client", new
-        {
-            name = "Existe",
-            email = "existe@teste.com",
-            password = "123456"
-        });
+        // Arrange - Cadastra um cliente direto no banco
+        using var scope = _factory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
+        var existingClient = TestData.CreateClient(500, "Cliente Existe");
+        existingClient.Email = "clienteexiste500@teste.com";
+        db.Clients.Add(existingClient);
+        await db.SaveChangesAsync();
 
-        var response = await _client.GetAsync("/api/auth/check-email/existe@teste.com");
-        var json = await response.Content.ReadFromJsonAsync<dynamic>();
-        bool existe = json?.Data;
-        existe.Should().BeTrue();
+        // Act
+        var client = _factory.CreateClient();
+        var response = await client.GetAsync("/api/auth/check-email/clienteexiste500@teste.com");
+        
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<ApiResponse<bool>>();
+        result!.Data.Should().BeTrue();
     }
 }

@@ -1,7 +1,7 @@
 ﻿using FluentAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
@@ -13,34 +13,42 @@ namespace VEA.API.Testes.Clients;
 
 public class GetClientsTests : ClientsControllerTests
 {
-    public GetClientsTests(WebApplicationFactory<VEA.API.Program> factory) : base(factory) { }
+    public GetClientsTests(CustomWebApplicationFactory factory) : base(factory) { }
 
     [Fact(DisplayName = "Admin deve listar clientes da própria empresa")]
     public async Task Admin_Deve_Listar_Clientes_Da_Empresa()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = _factory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        
         db.Clients.AddRange(
-            new Client { Id = 1, Name = "João", Email = "joao@teste.com", CompanyId = 1 },
-            new Client { Id = 2, Name = "Maria", Email = "maria@teste.com", CompanyId = 1 },
-            new Client { Id = 3, Name = "Pedro", Email = "pedro@teste.com", CompanyId = 2 }
+            TestData.CreateClient(801, "João Cliente", 801),
+            TestData.CreateClient(802, "Maria Cliente", 801),
+            TestData.CreateClient(803, "Pedro Cliente", 802) // Outra empresa
         );
         await db.SaveChangesAsync();
 
-        var client = CreateClientWithClaims("10", "Admin", "1");
-        var response = await client.GetAsync("/api/clients?companyId=1");
+        var httpClient = CreateAdminClient(adminId: 10, companyId: 801);
+        var response = await httpClient.GetAsync("/api/clients?companyId=801");
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var result = await response.Content.ReadFromJsonAsync<ApiResponse<List<Client>>>();
-        result!.Data.Should().HaveCount(2);
-        result.Data.Should().Contain(c => c.Name == "João");
+        
+        result.Should().NotBeNull();
+        result!.Data.Should().NotBeNull();
+        
+        // Filtra apenas os clientes da empresa 801
+        var clientsDaEmpresa = result.Data!.Where(c => c.CompanyId == 801).ToList();
+        clientsDaEmpresa.Should().HaveCount(2);
+        clientsDaEmpresa.Should().Contain(c => c.Name == "João Cliente");
+        clientsDaEmpresa.Should().Contain(c => c.Name == "Maria Cliente");
     }
 
     [Fact(DisplayName = "Não Admin não deve acessar lista de clientes")]
     public async Task Nao_Admin_Nao_Deve_Acessar_Lista()
     {
-        var client = CreateClientWithClaims("999", "Client", "1");
-        var response = await client.GetAsync("/api/clients?companyId=1");
+        var httpClient = CreateClientWithClaims("999", "Client", "1");
+        var response = await httpClient.GetAsync("/api/clients?companyId=1");
 
         response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }

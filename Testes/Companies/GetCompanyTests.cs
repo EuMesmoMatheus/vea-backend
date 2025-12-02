@@ -1,5 +1,4 @@
 ﻿using FluentAssertions;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
@@ -12,27 +11,30 @@ namespace VEA.API.Testes.Companies;
 
 public class GetCompanyTests : CompaniesControllerTests
 {
-    public GetCompanyTests(WebApplicationFactory<VEA.API.Program> factory) : base(factory) { }
+    public GetCompanyTests(CustomWebApplicationFactory factory) : base(factory) { }
 
     [Fact(DisplayName = "GetCompany deve retornar empresa com URL completa")]
     public async Task Deve_Retornar_Empresa_Com_Logo_Completo()
     {
-        using var scope = _factory.Services.CreateScope();
+        using var scope = _factory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        db.Companies.Add(new Company
-        {
-            Id = 99,
-            Name = "Salão Bela",
-            Logo = "/uploads/logos/bela.png",
-            CoverImage = "/uploads/covers/bela.jpg"
-        });
+        
+        var company = TestData.CreateCompany(704, "Salão Bela Teste", true);
+        company.Logo = "/uploads/logos/bela.png";
+        company.CoverImage = "/uploads/covers/bela.jpg";
+        db.Companies.Add(company);
         await db.SaveChangesAsync();
 
-        var response = await _client.GetAsync("/api/companies/99");
+        // Este endpoint requer autenticação (Admin ou Client)
+        var httpClient = CreateClientWithClaims(userId: 1, role: "Client", companyId: 704);
+        var response = await httpClient.GetAsync("/api/companies/704");
+        
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         var result = await response.Content.ReadFromJsonAsync<ApiResponse<CompanyDto>>();
-        result!.Data!.Logo.Should().Contain("http");
+        result.Should().NotBeNull();
+        result!.Data.Should().NotBeNull();
+        result.Data!.Logo.Should().Contain("http");
         result.Data.CoverImage.Should().Contain("http");
     }
 }
