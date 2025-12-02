@@ -1,11 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
 	<PropertyGroup>
 		<TargetFramework>net9.0</TargetFramework>
-		<OutputType>Exe</OutputType>
 		<RootNamespace>VEA.API</RootNamespace>
 		<Nullable>enable</Nullable>
-		<GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+		<ImplicitUsings>enable</ImplicitUsings>
 		<UserSecretsId>4d4d4ba7-9d84-41e2-a68b-0705b0b961c7</UserSecretsId>
 		<IsPackable>false</IsPackable>
 		<IsTestProject>true</IsTestProject>
@@ -13,6 +12,7 @@
 
 	<!-- Pacotes do seu projeto (já estavam) -->
 	<ItemGroup>
+		<PackageReference Include="MailKit" Version="4.3.0" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.10" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.10">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

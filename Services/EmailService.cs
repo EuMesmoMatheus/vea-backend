@@ -1,19 +1,19 @@
 ﻿using System;
-using System.Net;
-using System.Net.Mail;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using VEA.API.Models;                        // ← ajuste se o seu SmtpSettings estiver em outra pasta
+using MailKit.Net.Smtp;
+using MailKit.Security;
+using MimeKit;
+using VEA.API.Models;
 
 namespace VEA.API.Services
 {
     public class EmailService : IEmailService
     {
-        private readonly SmtpSettings _smtpSettings;   // ← mudou
+        private readonly SmtpSettings _smtpSettings;
         private readonly ILogger<EmailService> _logger;
 
-        // ← mudou só essa linha (o resto do construtor é igual)
         public EmailService(IOptions<SmtpSettings> smtpSettings, ILogger<EmailService> logger)
         {
             _smtpSettings = smtpSettings.Value;
@@ -34,11 +34,11 @@ namespace VEA.API.Services
         {
             try
             {
-                var host = _smtpSettings.Host;
-                var port = _smtpSettings.Port;
+                var host = _smtpSettings.Host ?? "smtp.gmail.com";
+                var port = _smtpSettings.Port > 0 ? _smtpSettings.Port : 587;
                 var username = _smtpSettings.Username;
                 var password = _smtpSettings.Password;
-                var from = _smtpSettings.From ?? "no-reply@vea.com";
+                var from = _smtpSettings.From ?? username ?? "no-reply@vea.com";
 
                 _logger.LogInformation("[EMAIL] Tentando enviar email para {To}. Host={Host}, Port={Port}, From={From}", to, host, port, from);
 
@@ -48,13 +48,26 @@ namespace VEA.API.Services
                     return;
                 }
 
-                using var smtpClient = new SmtpClient(host, port);
-                smtpClient.EnableSsl = true;
-                smtpClient.Credentials = new NetworkCredential(username, password);
+                var message = new MimeMessage();
+                message.From.Add(new MailboxAddress("VEA - Veja, Explore e Agende", from));
+                message.To.Add(new MailboxAddress("", to));
+                message.Subject = subject;
 
-                using var mailMessage = new MailMessage(from, to, subject, body) { IsBodyHtml = true };
+                var bodyBuilder = new BodyBuilder { HtmlBody = body };
+                message.Body = bodyBuilder.ToMessageBody();
 
-                await smtpClient.SendMailAsync(mailMessage);
+                using var client = new MailKit.Net.Smtp.SmtpClient();
+                
+                // Tenta conectar com StartTLS (porta 587) ou SSL (porta 465)
+                var secureOption = port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls;
+                
+                _logger.LogInformation("[EMAIL] Conectando ao SMTP {Host}:{Port} com {Security}", host, port, secureOption);
+                
+                await client.ConnectAsync(host, port, secureOption);
+                await client.AuthenticateAsync(username, password);
+                await client.SendAsync(message);
+                await client.DisconnectAsync(true);
+
                 _logger.LogInformation("[EMAIL] E-mail enviado com sucesso para {To}", to);
             }
             catch (Exception ex)
