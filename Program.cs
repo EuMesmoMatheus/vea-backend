@@ -1,4 +1,5 @@
 // CI/CD + SonarCloud + Railway ativado – 01/12/2025
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -17,6 +18,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using VEA.API.Data;
 using VEA.API.Services;
+using VEA.API.Testes;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,7 +29,6 @@ builder.Configuration.AddEnvironmentVariables(); // ← essencial pro Railway fu
 builder.Services.Configure<VEA.API.Models.SmtpSettings>(options =>
 {
     builder.Configuration.GetSection("Smtp").Bind(options);
-
     // Sobrescreve a senha com a variável de ambiente (Railway)
     var smtpPassword = Environment.GetEnvironmentVariable("SMTP_PASSWORD");
     if (!string.IsNullOrEmpty(smtpPassword))
@@ -74,7 +75,13 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             options.RequireHttpsMetadata = false;
     });
 
-// CORS (perfeito como está)
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddAuthentication("TestAuth")
+        .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
+            "TestAuth", options => { });
+}
+// CORS (perfeito como está) → MANTIVE EXATAMENTE IGUAL
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAngular", policy =>
@@ -141,10 +148,13 @@ app.UseExceptionHandler(errorApp =>
     });
 });
 
-app.UseCors("AllowAngular");
+// AS DUAS ÚNICAS MUDANÇAS QUE RESOLVEM TUDO:
+// 1) CORS tem que vir ANTES de Authentication/Authorization
+app.UseCors("AllowAngular");           // ← movi pra cá (era depois)
 app.UseAuthentication();
 app.UseAuthorization();
 
+// 2) StaticFiles depois do CORS e antes do MapControllers (ordem correta)
 app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = ctx =>

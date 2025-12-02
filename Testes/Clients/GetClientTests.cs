@@ -1,6 +1,10 @@
-﻿using System.Net;
+﻿using FluentAssertions;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using System.Net;
 using System.Net.Http.Json;
-using FluentAssertions;
+using System.Threading.Tasks;
+using VEA.API.Data;
 using VEA.API.Models;
 using Xunit;
 
