@@ -406,8 +406,14 @@ public class AuthController : ControllerBase
             var audience = _config["Jwt:Audience"];
             if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(issuer) || string.IsNullOrEmpty(audience))
             {
-                _logger.LogError("Configuração JWT inválida");
+                _logger.LogError("Configuração JWT inválida. Key={KeyExists}, Issuer={IssuerExists}, Audience={AudienceExists}", 
+                    !string.IsNullOrEmpty(key), !string.IsNullOrEmpty(issuer), !string.IsNullOrEmpty(audience));
                 return StatusCode(500, new ApiResponse<object> { Success = false, Message = "Erro interno: Configuração JWT inválida." });
+            }
+            if (key.Length < 32)
+            {
+                _logger.LogError("JWT Key muito curta. Mínimo 32 caracteres, atual: {Length}", key.Length);
+                return StatusCode(500, new ApiResponse<object> { Success = false, Message = "Erro interno: Configuração JWT inválida (key muito curta)." });
             }
             var loginEmailLower = login.Email?.Trim().ToLowerInvariant() ?? "";
             var company = await _context.Companies.FirstOrDefaultAsync(c => c.Email != null && c.Email.ToLower() == loginEmailLower);
@@ -488,8 +494,12 @@ public class AuthController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Erro ao processar login para e-mail: {Email}", login.Email);
-            return StatusCode(500, new ApiResponse<object> { Success = false, Message = "Erro interno ao processar login" });
+            _logger.LogError(ex, "Erro ao processar login para e-mail: {Email}. Detalhes: {Message}", login.Email, ex.Message);
+            // Em produção, retorna mensagem genérica mas loga o erro completo
+            var errorDetail = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development" 
+                ? ex.Message 
+                : "Erro interno ao processar login";
+            return StatusCode(500, new ApiResponse<object> { Success = false, Message = errorDetail });
         }
     }
     // Check if email exists (GET /auth/check-email/{email})
