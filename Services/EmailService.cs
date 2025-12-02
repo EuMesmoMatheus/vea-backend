@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -15,13 +14,15 @@ namespace VEA.API.Services
         private readonly ILogger<EmailService> _logger;
         private readonly string _apiKey;
         private readonly string _fromEmail;
+        private readonly string _fromName;
 
         public EmailService(IConfiguration config, ILogger<EmailService> logger)
         {
             _httpClient = new HttpClient();
             _logger = logger;
-            _apiKey = config["Resend:ApiKey"] ?? "";
-            _fromEmail = config["Resend:From"] ?? "VEA <onboarding@resend.dev>";
+            _apiKey = config["Brevo:ApiKey"] ?? "";
+            _fromEmail = config["Brevo:FromEmail"] ?? "veaenterpriseapi@gmail.com";
+            _fromName = config["Brevo:FromName"] ?? "VEA - Veja, Explore e Agende";
         }
 
         public async Task SendConfirmationEmail(string to, string subject, string body)
@@ -40,27 +41,27 @@ namespace VEA.API.Services
             {
                 if (string.IsNullOrEmpty(_apiKey))
                 {
-                    _logger.LogWarning("[EMAIL] API Key do Resend está vazia! Email não será enviado.");
+                    _logger.LogWarning("[EMAIL] API Key do Brevo está vazia! Email não será enviado.");
                     return;
                 }
 
-                _logger.LogInformation("[EMAIL] Enviando email para {To} via Resend", to);
+                _logger.LogInformation("[EMAIL] Enviando email para {To} via Brevo", to);
 
                 var payload = new
                 {
-                    from = _fromEmail,
-                    to = new[] { to },
+                    sender = new { name = _fromName, email = _fromEmail },
+                    to = new[] { new { email = to } },
                     subject = subject,
-                    html = body
+                    htmlContent = body
                 };
 
                 var json = JsonSerializer.Serialize(payload);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
                 _httpClient.DefaultRequestHeaders.Clear();
-                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+                _httpClient.DefaultRequestHeaders.Add("api-key", _apiKey);
 
-                var response = await _httpClient.PostAsync("https://api.resend.com/emails", content);
+                var response = await _httpClient.PostAsync("https://api.brevo.com/v3/smtp/email", content);
                 var responseBody = await response.Content.ReadAsStringAsync();
 
                 if (response.IsSuccessStatusCode)
