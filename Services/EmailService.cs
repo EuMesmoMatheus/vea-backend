@@ -1,23 +1,27 @@
 ﻿using System;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using MailKit.Net.Smtp;
-using MailKit.Security;
-using MimeKit;
-using VEA.API.Models;
 
 namespace VEA.API.Services
 {
     public class EmailService : IEmailService
     {
-        private readonly SmtpSettings _smtpSettings;
+        private readonly HttpClient _httpClient;
         private readonly ILogger<EmailService> _logger;
+        private readonly string _apiKey;
+        private readonly string _fromEmail;
 
-        public EmailService(IOptions<SmtpSettings> smtpSettings, ILogger<EmailService> logger)
+        public EmailService(IConfiguration config, ILogger<EmailService> logger)
         {
-            _smtpSettings = smtpSettings.Value;
+            _httpClient = new HttpClient();
             _logger = logger;
+            _apiKey = config["Resend:ApiKey"] ?? "";
+            _fromEmail = config["Resend:From"] ?? "VEA <onboarding@resend.dev>";
         }
 
         public async Task SendConfirmationEmail(string to, string subject, string body)
@@ -34,41 +38,40 @@ namespace VEA.API.Services
         {
             try
             {
-                var host = _smtpSettings.Host ?? "smtp.gmail.com";
-                var port = _smtpSettings.Port > 0 ? _smtpSettings.Port : 587;
-                var username = _smtpSettings.Username;
-                var password = _smtpSettings.Password;
-                var from = _smtpSettings.From ?? username ?? "no-reply@vea.com";
-
-                _logger.LogInformation("[EMAIL] Tentando enviar email para {To}. Host={Host}, Port={Port}, From={From}", to, host, port, from);
-
-                if (string.IsNullOrEmpty(password))
+                if (string.IsNullOrEmpty(_apiKey))
                 {
-                    _logger.LogWarning("[EMAIL] Password do SMTP está vazio! Email não será enviado.");
+                    _logger.LogWarning("[EMAIL] API Key do Resend está vazia! Email não será enviado.");
                     return;
                 }
 
-                var message = new MimeMessage();
-                message.From.Add(new MailboxAddress("VEA - Veja, Explore e Agende", from));
-                message.To.Add(new MailboxAddress("", to));
-                message.Subject = subject;
+                _logger.LogInformation("[EMAIL] Enviando email para {To} via Resend", to);
 
-                var bodyBuilder = new BodyBuilder { HtmlBody = body };
-                message.Body = bodyBuilder.ToMessageBody();
+                var payload = new
+                {
+                    from = _fromEmail,
+                    to = new[] { to },
+                    subject = subject,
+                    html = body
+                };
 
-                using var client = new MailKit.Net.Smtp.SmtpClient();
-                
-                // Tenta conectar com StartTLS (porta 587) ou SSL (porta 465)
-                var secureOption = port == 465 ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls;
-                
-                _logger.LogInformation("[EMAIL] Conectando ao SMTP {Host}:{Port} com {Security}", host, port, secureOption);
-                
-                await client.ConnectAsync(host, port, secureOption);
-                await client.AuthenticateAsync(username, password);
-                await client.SendAsync(message);
-                await client.DisconnectAsync(true);
+                var json = JsonSerializer.Serialize(payload);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                _logger.LogInformation("[EMAIL] E-mail enviado com sucesso para {To}", to);
+                _httpClient.DefaultRequestHeaders.Clear();
+                _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+
+                var response = await _httpClient.PostAsync("https://api.resend.com/emails", content);
+                var responseBody = await response.Content.ReadAsStringAsync();
+
+                if (response.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation("[EMAIL] Email enviado com sucesso para {To}. Response: {Response}", to, responseBody);
+                }
+                else
+                {
+                    _logger.LogError("[EMAIL] Erro ao enviar email para {To}. Status: {Status}, Response: {Response}", 
+                        to, response.StatusCode, responseBody);
+                }
             }
             catch (Exception ex)
             {
