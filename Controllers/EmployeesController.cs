@@ -242,7 +242,7 @@ public class EmployeesController : ControllerBase
         if (employee == null || employee.EmailVerified) return BadRequest(new ApiResponse<object> { Success = false, Message = "Funcion�rio inv�lido ou j� verificado" });
         var companyId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
         if (employee.CompanyId != companyId) return Forbid();
-        var frontendUrl = "http://localhost:4200";
+        var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "https://vea-nine.vercel.app";
         var inviteLink = $"{frontendUrl}/employee/activate/{employee.Id}?token={GenerateTempToken(employee.Email ?? "")}";
         var htmlBody = GenerateInviteHtml(inviteLink, employee.Name ?? "Funcion�rio");
         await _emailService.SendInviteEmail(employee.Email ?? "", "Reenvio: Convite VEA - Crie sua senha", htmlBody);
