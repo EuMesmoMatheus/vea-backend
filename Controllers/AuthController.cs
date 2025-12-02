@@ -1,9 +1,9 @@
-using Microsoft.AspNetCore.Mvc;
+ï»¿using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using VEA.API.Models; // Company, Client, Employee, Address, RegisterClientDto
+using VEA.API.Models;
 using VEA.API.Data;
 using Microsoft.EntityFrameworkCore;
 using BCrypt.Net;
@@ -12,15 +12,15 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
 using System;
-using VEA.API.Services; // IEmailService
-using System.ComponentModel.DataAnnotations; // Validações
-using System.Linq; // Para Contains
-using System.Text.Json; // Pra JsonSerializer
-using System.Text.Json.Serialization; // Pra JsonPropertyName
-using Microsoft.AspNetCore.Hosting; // Pra IWebHostEnvironment
-using Microsoft.AspNetCore.Http; // Pra IFormFile
-using System.IO; // Pra FileStream e Path
-using System.Text.RegularExpressions; // Pra validações regex
+using VEA.API.Services;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using System.IO;
+using System.Text.RegularExpressions;
 using System.Collections.Generic;
 
 [Route("api/[controller]")]
@@ -31,7 +31,8 @@ public class AuthController : ControllerBase
     private readonly IConfiguration _config;
     private readonly ILogger<AuthController> _logger;
     private readonly IEmailService _emailService;
-    private readonly IWebHostEnvironment _env; // Pra salvar files
+    private readonly IWebHostEnvironment _env;
+
     public AuthController(ApplicationDbContext context, IConfiguration config, ILogger<AuthController> logger, IEmailService emailService, IWebHostEnvironment env)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
@@ -40,52 +41,60 @@ public class AuthController : ControllerBase
         _emailService = emailService ?? throw new ArgumentNullException(nameof(emailService));
         _env = env ?? throw new ArgumentNullException(nameof(env));
     }
-    // Sub-model pra OperatingHours com mapping camelCase
+
     public class OperatingHours
     {
         [JsonPropertyName("startTime")]
         [Required]
         public string StartTime { get; set; } = string.Empty;
+
         [JsonPropertyName("endTime")]
         [Required]
         public string EndTime { get; set; } = string.Empty;
     }
-    // Model pra bind address dos form fields (facilita validação)
+
     public class AddressForm
     {
-        [Required(ErrorMessage = "CEP é obrigatório")]
+        [Required(ErrorMessage = "CEP Ã© obrigatÃ³rio")]
         public string? Cep { get; set; }
-        [Required(ErrorMessage = "Logradouro é obrigatório")]
+
+        [Required(ErrorMessage = "Logradouro Ã© obrigatÃ³rio")]
         public string? Logradouro { get; set; }
-        [Required(ErrorMessage = "Número é obrigatório")]
+
+        [Required(ErrorMessage = "NÃºmero Ã© obrigatÃ³rio")]
         public string? Numero { get; set; }
-        public string? Complemento { get; set; } // Opcional
-        [Required(ErrorMessage = "Bairro é obrigatório")]
+
+        public string? Complemento { get; set; }
+
+        [Required(ErrorMessage = "Bairro Ã© obrigatÃ³rio")]
         public string? Bairro { get; set; }
-        [Required(ErrorMessage = "Cidade é obrigatória")]
+
+        [Required(ErrorMessage = "Cidade Ã© obrigatÃ³ria")]
         public string? Cidade { get; set; }
-        [Required(ErrorMessage = "UF é obrigatória")]
+
+        [Required(ErrorMessage = "UF Ã© obrigatÃ³ria")]
         public string? Uf { get; set; }
     }
-    // LoginModel embutido
+
     public class LoginModel
     {
-        [Required(ErrorMessage = "E-mail é obrigatório")]
-        [EmailAddress(ErrorMessage = "Formato de e-mail inválido")]
+        [Required(ErrorMessage = "E-mail Ã© obrigatÃ³rio")]
+        [EmailAddress(ErrorMessage = "Formato de e-mail invÃ¡lido")]
         public string? Email { get; set; }
-        [Required(ErrorMessage = "Senha é obrigatória")]
+
+        [Required(ErrorMessage = "Senha Ã© obrigatÃ³ria")]
         public string? Password { get; set; }
     }
+
     [HttpPost("register/company")]
     public async Task<IActionResult> RegisterCompany()
     {
         try
         {
-            // Validações manuais básicas (inclui endereço novo, remove location)
             var name = Request.Form["name"].ToString();
             var email = Request.Form["email"].ToString();
             var phone = Request.Form["phone"].ToString();
-            var password = Request.Form["password"].ToString(); // <<< FIX: Usa "password" (plain)
+            var password = Request.Form["password"].ToString();
             var cep = Request.Form["cep"].ToString();
             var logradouro = Request.Form["logradouro"].ToString();
             var numero = Request.Form["numero"].ToString();
@@ -97,26 +106,29 @@ public class AuthController : ControllerBase
             var businessType = Request.Form["businessType"].ToString();
             var logoFile = Request.Form.Files["logo"];
             var coverImageFile = Request.Form.Files["coverImage"];
-            if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(email) || string.IsNullOrEmpty(phone) || string.IsNullOrEmpty(password) || // <<< FIX: Checa password
+
+            if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(email) || string.IsNullOrEmpty(phone) || string.IsNullOrEmpty(password) ||
                 string.IsNullOrEmpty(cep) || string.IsNullOrEmpty(logradouro) || string.IsNullOrEmpty(numero) || string.IsNullOrEmpty(bairro) ||
                 string.IsNullOrEmpty(cidade) || string.IsNullOrEmpty(uf) || string.IsNullOrEmpty(operatingHoursJson) || string.IsNullOrEmpty(businessType))
             {
-                return BadRequest(new ApiResponse<Company> { Success = false, Message = "Campos obrigatórios vazios" });
+                return BadRequest(new ApiResponse<Company> { Success = false, Message = "Campos obrigatÃ³rios vazios" });
             }
-            // Validações específicas pro endereço
+
             if (!Regex.IsMatch(cep, @"^\d{5}-\d{3}$"))
             {
-                return BadRequest(new ApiResponse<Company> { Success = false, Message = "Formato de CEP inválido: use 00000-000" });
+                return BadRequest(new ApiResponse<Company> { Success = false, Message = "Formato de CEP invÃ¡lido: use 00000-000" });
             }
+
             if (!Regex.IsMatch(uf, @"^[A-Z]{2}$"))
             {
-                return BadRequest(new ApiResponse<Company> { Success = false, Message = "UF inválida: use 2 letras maiúsculas (ex: SP)" });
+                return BadRequest(new ApiResponse<Company> { Success = false, Message = "UF invÃ¡lida: use 2 letras maiÃºsculas (ex: SP)" });
             }
+
             if (logoFile == null || logoFile.Length == 0)
             {
-                return BadRequest(new ApiResponse<Company> { Success = false, Message = "Logo é obrigatório para empresa" });
+                return BadRequest(new ApiResponse<Company> { Success = false, Message = "Logo Ã© obrigatÃ³rio para empresa" });
             }
-            // Parse operatingHours
+
             OperatingHours? operatingHours = null;
             try
             {
@@ -124,64 +136,66 @@ public class AuthController : ControllerBase
             }
             catch (Exception ex)
             {
-                return BadRequest(new ApiResponse<Company> { Success = false, Message = "Horário inválido: " + operatingHoursJson });
+                return BadRequest(new ApiResponse<Company> { Success = false, Message = "HorÃ¡rio invÃ¡lido: " + operatingHoursJson });
             }
+
             if (operatingHours == null || string.IsNullOrEmpty(operatingHours.StartTime) || string.IsNullOrEmpty(operatingHours.EndTime))
             {
-                return BadRequest(new ApiResponse<Company> { Success = false, Message = "Horário de funcionamento inválido" });
+                return BadRequest(new ApiResponse<Company> { Success = false, Message = "HorÃ¡rio de funcionamento invÃ¡lido" });
             }
+
             if (TimeSpan.TryParse(operatingHours.StartTime, out var start) && TimeSpan.TryParse(operatingHours.EndTime, out var end) && start >= end)
             {
-                return BadRequest(new ApiResponse<Company> { Success = false, Message = "Horário inválido: fim deve ser após o início" });
+                return BadRequest(new ApiResponse<Company> { Success = false, Message = "HorÃ¡rio invÃ¡lido: fim deve ser apÃ³s o inÃ­cio" });
             }
-            // <<< DEBUG: ADICIONE AQUI >>>
+
             var allCompaniesEmails = await _context.Companies.Select(c => c.Email).ToListAsync();
-            var allClientsEmails = await _context.Clients.Select(c => c.Email).ToListAsync(); // Checa clients também pra ver se tem cross-check
+            var allClientsEmails = await _context.Clients.Select(c => c.Email).ToListAsync();
             _logger.LogInformation($"[DEBUG RegisterCompany] All Companies emails: [{string.Join(", ", allCompaniesEmails ?? new List<string>())}] (Count: {allCompaniesEmails?.Count ?? 0})");
             _logger.LogInformation($"[DEBUG RegisterCompany] All Clients emails: [{string.Join(", ", allClientsEmails ?? new List<string>())}] (Count: {allClientsEmails?.Count ?? 0})");
-            var emailNormalized = email?.Trim().ToLowerInvariant(); // Normaliza pra debug (e use isso na query abaixo se quiser)
-            bool existsInCompanies = await _context.Companies.AnyAsync(c => c.Email.ToLower() == emailNormalized); // <<< FIX: ToLower()
-            bool existsInClients = await _context.Clients.AnyAsync(c => c.Email.ToLower() == emailNormalized); // Adiciona check em clients também, pra debug completo
+
+            var emailNormalized = email?.Trim().ToLowerInvariant();
+            bool existsInCompanies = await _context.Companies.AnyAsync(c => c.Email.ToLower() == emailNormalized);
+            bool existsInClients = await _context.Clients.AnyAsync(c => c.Email.ToLower() == emailNormalized);
             _logger.LogInformation($"[DEBUG RegisterCompany] Email '{email}' (normalized: '{emailNormalized}') EXISTS in Companies: {existsInCompanies} | in Clients: {existsInClients}");
-            if (existsInCompanies || existsInClients) // Muda o if pra checar ambos, pra evitar cross-registro
+
+            if (existsInCompanies || existsInClients)
             {
-                return BadRequest(new ApiResponse<Company> { Success = false, Message = "E-mail já cadastrado (em Companies ou Clients)" });
+                return BadRequest(new ApiResponse<Company> { Success = false, Message = "E-mail jÃ¡ cadastrado (em Companies ou Clients)" });
             }
-            // <<< FIM DO DEBUG >>>
-            // Validações extras
-            var validTypes = new[] { "Barbearia", "Estética", "Manicure", "Centro de Psicologia", "Clínica Médica", "Salão de Beleza", "Auto Escola" };
+
+            var validTypes = new[] { "Barbearia", "EstÃ©tica", "Manicure", "Centro de Psicologia", "ClÃ­nica MÃ©dica", "SalÃ£o de Beleza", "Auto Escola" };
             if (!validTypes.Contains(businessType))
             {
-                return BadRequest(new ApiResponse<Company> { Success = false, Message = "Tipo de negócio inválido. Opções: " + string.Join(", ", validTypes) });
+                return BadRequest(new ApiResponse<Company> { Success = false, Message = "Tipo de negÃ³cio invÃ¡lido. OpÃ§Ãµes: " + string.Join(", ", validTypes) });
             }
-            // Hash senha (da plain text)
+
             var hashedPassword = BCrypt.Net.BCrypt.HashPassword(password);
-            // Salva logo
             string logoPath = await SaveFileAsync(logoFile, "logos");
-            // Salva cover (opcional)
             string? coverPath = null;
             if (coverImageFile != null && coverImageFile.Length > 0)
             {
                 coverPath = await SaveFileAsync(coverImageFile, "covers");
             }
-            // Normaliza e-mail para lowercase antes de salvar
+
             email = emailNormalized;
-            // Cria e salva Company PRIMEIRO (sem AddressId ainda)
+
             var company = new Company
             {
                 Name = name,
                 Email = email,
                 Phone = phone,
-                PasswordHash = hashedPassword, // <<< FIX: Usa hashedPassword
+                PasswordHash = hashedPassword,
                 OperatingHours = JsonSerializer.Serialize(operatingHours),
                 BusinessType = businessType,
                 Logo = logoPath,
                 CoverImage = coverPath,
-                IsActive = false // Confirmação por email
+                IsActive = false
             };
+
             _context.Companies.Add(company);
-            await _context.SaveChangesAsync(); // Salva Company pra pegar Id real
-            // Agora cria Address com o CompanyId real
+            await _context.SaveChangesAsync();
+
             var address = new Address
             {
                 Cep = cep,
@@ -191,21 +205,19 @@ public class AuthController : ControllerBase
                 Bairro = bairro,
                 Cidade = cidade,
                 Uf = uf,
-                CompanyId = company.Id // Aqui linka o FK!
+                CompanyId = company.Id
             };
             _context.Addresses.Add(address);
-            await _context.SaveChangesAsync(); // Salva Address
-            // Linka de volta na Company (AddressId) e salva final
+            await _context.SaveChangesAsync();
             company.AddressId = address.Id;
-            await _context.SaveChangesAsync(); // Update rápido na Company
-            // Envia email confirmação com HTML bonito e link pro front (paleta rosa VEA)
-            var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "https://vea-nine.vercel.app"; // Fallback dev
+            await _context.SaveChangesAsync();
+
+            var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "https://vea-nine.vercel.app";
             var confirmLink = $"{frontendUrl}/confirm/company/{company.Id}?token={GenerateTempToken(company.Email)}";
             var htmlBody = GenerateConfirmationHtml(confirmLink, company.Name, "empresa");
             await _emailService.SendConfirmationEmail(company.Email, "Confirme sua conta VEA - Veja, Explore e Agende", htmlBody);
-            // Retorna sem senha + role = "Admin", companyId = company.Id
+
             company.PasswordHash = null;
-            // FIX: Torna paths absolutos antes de retornar
             var baseUrl = $"{Request.Scheme}://{Request.Host}";
             if (!string.IsNullOrEmpty(company.Logo) && !company.Logo.StartsWith("http"))
             {
@@ -215,6 +227,7 @@ public class AuthController : ControllerBase
             {
                 company.CoverImage = $"{baseUrl}{company.CoverImage}";
             }
+
             return Ok(new ApiResponse<object>
             {
                 Success = true,
@@ -228,49 +241,53 @@ public class AuthController : ControllerBase
             return StatusCode(500, new ApiResponse<Company> { Success = false, Message = "Erro interno ao cadastrar empresa" });
         }
     }
+
     [HttpPost("register/client")]
-    public async Task<IActionResult> RegisterClient([FromBody] RegisterClientDto dto) // <<< FIX: Usa DTO com Password
+    public async Task<IActionResult> RegisterClient([FromBody] RegisterClientDto dto)
     {
         try
         {
-            _logger.LogInformation("[DEBUG RegisterClient ENTRY] Received DTO: Name={Name}, Email={Email}, Password={Password}", dto?.Name, dto?.Email, dto?.Password); // <<< FIX: Log da plain password
-            if (dto == null || string.IsNullOrEmpty(dto.Email) || string.IsNullOrEmpty(dto.Password)) // <<< FIX: Checa DTO.Password
-                return BadRequest(new ApiResponse<Client> { Success = false, Message = "E-mail ou senha é obrigatória" });
-            // <<< DEBUG: ADICIONE AQUI >>>
-            var allCompaniesEmails = await _context.Companies.Select(c => c.Email ?? "NULL").ToListAsync(); // ?? pra nulls
+            _logger.LogInformation("[DEBUG RegisterClient ENTRY] Received DTO: Name={Name}, Email={Email}, Password={Password}", dto?.Name, dto?.Email, dto?.Password);
+            if (dto == null || string.IsNullOrEmpty(dto.Email) || string.IsNullOrEmpty(dto.Password))
+                return BadRequest(new ApiResponse<Client> { Success = false, Message = "E-mail ou senha Ã© obrigatÃ³ria" });
+
+            var allCompaniesEmails = await _context.Companies.Select(c => c.Email ?? "NULL").ToListAsync();
             var allClientsEmails = await _context.Clients.Select(c => c.Email ?? "NULL").ToListAsync();
             _logger.LogInformation($"[DEBUG RegisterClient] All Companies emails: [{string.Join(", ", allCompaniesEmails)}] (Count: {allCompaniesEmails.Count})");
             _logger.LogInformation($"[DEBUG RegisterClient] All Clients emails: [{string.Join(", ", allClientsEmails)}] (Count: {allClientsEmails.Count})");
-            var emailNormalized = dto.Email.Trim().ToLowerInvariant(); // Trim extra
+
+            var emailNormalized = dto.Email.Trim().ToLowerInvariant();
             _logger.LogInformation($"[DEBUG RegisterClient] Original email: '{dto.Email}', Normalized: '{emailNormalized}'");
-            bool existsInCompanies = await _context.Companies.AnyAsync(c => !string.IsNullOrEmpty(c.Email) && c.Email.ToLower() == emailNormalized); // <<< FIX: ToLower() + null check
-            bool existsInClients = await _context.Clients.AnyAsync(c => !string.IsNullOrEmpty(c.Email) && c.Email.ToLower() == emailNormalized); // <<< FIX: ToLower() + null check
+
+            bool existsInCompanies = await _context.Companies.AnyAsync(c => !string.IsNullOrEmpty(c.Email) && c.Email.ToLower() == emailNormalized);
+            bool existsInClients = await _context.Clients.AnyAsync(c => !string.IsNullOrEmpty(c.Email) && c.Email.ToLower() == emailNormalized);
             _logger.LogInformation($"[DEBUG RegisterClient] Email '{dto.Email}' (normalized: '{emailNormalized}') EXISTS in Companies: {existsInCompanies} | in Clients: {existsInClients}");
+
             if (existsInCompanies || existsInClients)
             {
                 _logger.LogWarning($"[DEBUG RegisterClient] Duplicate email detected: {emailNormalized}");
-                return BadRequest(new ApiResponse<Client> { Success = false, Message = "E-mail já cadastrado (em Companies ou Clients)" });
+                return BadRequest(new ApiResponse<Client> { Success = false, Message = "E-mail jÃ¡ cadastrado (em Companies ou Clients)" });
             }
-            // <<< FIM DO DEBUG >>>
-            // Cria Client do DTO
+
             var client = new Client
             {
                 Name = dto.Name,
-                Email = emailNormalized, // Salva normalized
+                Email = emailNormalized,
                 Phone = dto.Phone,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password), // <<< FIX: Hash da plain text do DTO
-                CompanyId = null, // Default pra clients
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
+                CompanyId = null,
                 IsActive = false
             };
+
             _logger.LogInformation("[DEBUG RegisterClient] Saving client with normalized email and hashed password");
             _context.Clients.Add(client);
             await _context.SaveChangesAsync();
-            // Envia email com HTML e link pro front (paleta rosa VEA)
+
             var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "https://vea-nine.vercel.app";
             var confirmLink = $"{frontendUrl}/confirm/client/{client.Id}?token={GenerateTempToken(client.Email)}";
             var htmlBody = GenerateConfirmationHtml(confirmLink, client.Name ?? "Cliente", "cliente");
             _ = _emailService.SendConfirmationEmail(client.Email, "Confirme sua conta VEA - Veja, Explore e Agende", htmlBody);
-            // Retorna sem senha + role = "Client", companyId = 0
+
             return Ok(new ApiResponse<object>
             {
                 Success = true,
@@ -284,6 +301,7 @@ public class AuthController : ControllerBase
             return StatusCode(500, new ApiResponse<Client> { Success = false, Message = "Erro interno ao cadastrar cliente" });
         }
     }
+
     [HttpPost("register/employee")]
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> RegisterEmployee(Employee employee)
@@ -291,59 +309,63 @@ public class AuthController : ControllerBase
         try
         {
             if (employee == null || string.IsNullOrEmpty(employee.Email))
-                return BadRequest(new ApiResponse<Employee> { Success = false, Message = "E-mail é obrigatório" });
+                return BadRequest(new ApiResponse<Employee> { Success = false, Message = "E-mail Ã© obrigatÃ³rio" });
+
             var companyId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
             employee.CompanyId = companyId;
+
             var emailNormalized = employee.Email?.Trim().ToLowerInvariant();
-            bool existsInCompany = await _context.Employees.AnyAsync(e => e.Email.ToLower() == emailNormalized && e.CompanyId == companyId); // <<< FIX: ToLower()
+            bool existsInCompany = await _context.Employees.AnyAsync(e => e.Email.ToLower() == emailNormalized && e.CompanyId == companyId);
+
             if (existsInCompany)
-                return BadRequest(new ApiResponse<Employee> { Success = false, Message = "E-mail já existe na empresa" });
-            // Normaliza e-mail para lowercase antes de salvar
+                return BadRequest(new ApiResponse<Employee> { Success = false, Message = "E-mail jÃ¡ existe na empresa" });
+
             employee.Email = emailNormalized;
             employee.PasswordHash = null;
             employee.IsActive = false;
+
             _context.Employees.Add(employee);
             await _context.SaveChangesAsync();
-            // Envia invite com HTML e link pro front (paleta rosa VEA)
+
             var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "https://vea-nine.vercel.app";
             var inviteLink = $"{frontendUrl}/employee/activate/{employee.Id}?token={GenerateTempToken(employee.Email)}";
-            var htmlBody = GenerateInviteHtml(inviteLink, employee.Name ?? "Funcionário");
-            _ = _emailService.SendInviteEmail(employee.Email, "Convite VEA - Crie sua senha", htmlBody);            // Adiciona role = "Employee", companyId = employee.CompanyId
+            var htmlBody = GenerateInviteHtml(inviteLink, employee.Name ?? "FuncionÃ¡rio");
+            _ = _emailService.SendInviteEmail(employee.Email, "Convite VEA - Crie sua senha", htmlBody);
+
             return Ok(new ApiResponse<object>
             {
                 Success = true,
                 Data = new { user = new { id = employee.Id, name = employee.Name, email = employee.Email, role = "Employee", companyId = employee.CompanyId } },
-                Message = "Funcionário cadastrado! Convite enviado."
+                Message = "FuncionÃ¡rio cadastrado! Convite enviado."
             });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Erro ao registrar funcionário");
-            return StatusCode(500, new ApiResponse<Employee> { Success = false, Message = "Erro interno ao cadastrar funcionário" });
+            _logger.LogError(ex, "Erro ao registrar funcionÃ¡rio");
+            return StatusCode(500, new ApiResponse<Employee> { Success = false, Message = "Erro interno ao cadastrar funcionÃ¡rio" });
         }
     }
-    // MUDANÇA: Agora GET pra compatibilidade com link do email (Angular chama via HttpClient)
+
     [HttpGet("confirm/{type}/{id}")]
     public async Task<IActionResult> ConfirmAccount(string type, int id, [FromQuery] string token)
     {
         try
         {
             if (string.IsNullOrEmpty(token))
-                return BadRequest(new ApiResponse<object> { Success = false, Message = "Token inválido" });
-            // Validação melhorada do token (base64 de "email ticks", checa expiração ~24h)
+                return BadRequest(new ApiResponse<object> { Success = false, Message = "Token invÃ¡lido" });
+
             try
             {
                 var decoded = Encoding.UTF8.GetString(Convert.FromBase64String(token));
                 var parts = decoded.Split(' ', 2);
                 if (parts.Length != 2 || !long.TryParse(parts[1], out var ticks) || Math.Abs((DateTime.Now.Ticks - ticks)) > TimeSpan.FromHours(24).Ticks)
-                    return BadRequest(new ApiResponse<object> { Success = false, Message = "Token expirado ou inválido" });
-                var expectedEmail = parts[0];
-                // Opcional: Checa se email bate com o user (adicione se quiser mais security)
+                    return BadRequest(new ApiResponse<object> { Success = false, Message = "Token expirado ou invÃ¡lido" });
             }
             catch
             {
-                return BadRequest(new ApiResponse<object> { Success = false, Message = "Token inválido" });
+                return BadRequest(new ApiResponse<object> { Success = false, Message = "Token invÃ¡lido" });
             }
+
             if (type == "company")
             {
                 var company = await _context.Companies.FindAsync(id);
@@ -351,7 +373,7 @@ public class AuthController : ControllerBase
                 {
                     company.IsActive = true;
                     await _context.SaveChangesAsync();
-                    return Ok(new ApiResponse<object> { Success = true, Message = "Conta ativada com sucesso! Você pode fazer login agora.", Data = new { type = "company" } });
+                    return Ok(new ApiResponse<object> { Success = true, Message = "Conta ativada com sucesso! VocÃª pode fazer login agora.", Data = new { type = "company" } });
                 }
             }
             else if (type == "client")
@@ -361,10 +383,11 @@ public class AuthController : ControllerBase
                 {
                     client.IsActive = true;
                     await _context.SaveChangesAsync();
-                    return Ok(new ApiResponse<object> { Success = true, Message = "Conta ativada com sucesso! Você pode fazer login agora.", Data = new { type = "client" } });
+                    return Ok(new ApiResponse<object> { Success = true, Message = "Conta ativada com sucesso! VocÃª pode fazer login agora.", Data = new { type = "client" } });
                 }
             }
-            return NotFound(new ApiResponse<object> { Success = false, Message = "Conta não encontrada ou já ativa" });
+
+            return NotFound(new ApiResponse<object> { Success = false, Message = "Conta nÃ£o encontrada ou jÃ¡ ativa" });
         }
         catch (Exception ex)
         {
@@ -372,66 +395,71 @@ public class AuthController : ControllerBase
             return StatusCode(500, new ApiResponse<object> { Success = false, Message = "Erro interno" });
         }
     }
+
     [HttpPost("employee/activate/{id}")]
     public async Task<IActionResult> ActivateEmployee(int id, [FromBody] string password)
     {
         try
         {
             var employee = await _context.Employees.FindAsync(id);
-            if (employee == null || employee.IsActive) return BadRequest(new ApiResponse<Employee> { Success = false, Message = "Funcionário inválido ou já ativo" });
-            if (string.IsNullOrEmpty(password)) return BadRequest(new ApiResponse<Employee> { Success = false, Message = "Senha obrigatória" });
+            if (employee == null || employee.IsActive) return BadRequest(new ApiResponse<Employee> { Success = false, Message = "FuncionÃ¡rio invÃ¡lido ou jÃ¡ ativo" });
+            if (string.IsNullOrEmpty(password)) return BadRequest(new ApiResponse<Employee> { Success = false, Message = "Senha obrigatÃ³ria" });
+
             employee.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password);
             employee.IsActive = true;
             await _context.SaveChangesAsync();
-            return Ok(new ApiResponse<object> { Success = true, Message = "Conta ativada! Agora faça login." });
+
+            return Ok(new ApiResponse<object> { Success = true, Message = "Conta ativada! Agora faÃ§a login." });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Erro ao ativar funcionário");
-            return StatusCode(500, new ApiResponse<Employee> { Success = false, Message = "Erro interno" });
+            _logger.LogError(ex, "Erro ao ativar funcionÃ¡rio");
+            return StatusCode(500, new ApiResponse<object> { Success = false, Message = "Erro interno" });
         }
     }
+
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginModel login)
     {
         try
         {
             if (login == null || string.IsNullOrEmpty(login.Email) || string.IsNullOrEmpty(login.Password))
-                return BadRequest(new ApiResponse<object> { Success = false, Message = "E-mail e senha são obrigatórios" });
+                return BadRequest(new ApiResponse<object> { Success = false, Message = "E-mail e senha sÃ£o obrigatÃ³rios" });
+
             var key = _config["Jwt:Key"];
             var issuer = _config["Jwt:Issuer"];
             var audience = _config["Jwt:Audience"];
             if (string.IsNullOrEmpty(key) || string.IsNullOrEmpty(issuer) || string.IsNullOrEmpty(audience))
             {
-                _logger.LogError("Configuração JWT inválida");
-                return StatusCode(500, new ApiResponse<object> { Success = false, Message = "Erro interno: Configuração JWT inválida." });
+                _logger.LogError("ConfiguraÃ§Ã£o JWT invÃ¡lida");
+                return StatusCode(500, new ApiResponse<object> { Success = false, Message = "Erro interno: ConfiguraÃ§Ã£o JWT invÃ¡lida." });
             }
+
             var loginEmailLower = login.Email?.Trim().ToLowerInvariant();
-            var company = await _context.Companies.FirstOrDefaultAsync(c => c.Email.ToLower() == loginEmailLower); // <<< FIX: ToLower()
-            var employee = await _context.Employees.FirstOrDefaultAsync(e => e.Email.ToLower() == loginEmailLower); // <<< FIX: ToLower()
-            var client = await _context.Clients.FirstOrDefaultAsync(c => c.Email.ToLower() == loginEmailLower); // <<< FIX: ToLower()
+
+            var company = await _context.Companies.FirstOrDefaultAsync(c => c.Email.ToLower() == loginEmailLower);
+            var employee = await _context.Employees.FirstOrDefaultAsync(e => e.Email.ToLower() == loginEmailLower);
+            var client = await _context.Clients.FirstOrDefaultAsync(c => c.Email.ToLower() == loginEmailLower);
+
             if (company == null && employee == null && client == null)
-            {
-                return Unauthorized(new ApiResponse<object> { Success = false, Message = "Usuário não encontrado." });
-            }
-            // Check IsActive corrigido (null-safe)
+                return Unauthorized(new ApiResponse<object> { Success = false, Message = "UsuÃ¡rio nÃ£o encontrado." });
+
             if ((company != null && !company.IsActive) || (employee != null && !employee.IsActive) || (client != null && !client.IsActive))
-            {
                 return Unauthorized(new ApiResponse<object> { Success = false, Message = "Conta inativa. Verifique seu e-mail." });
-            }
+
             string passwordHash = string.Empty;
             string role = string.Empty;
             int userId = 0;
             string name = string.Empty;
-            int companyId = 0; // CompanyId default 0
+            int companyId = 0;
+
             if (company != null)
             {
                 passwordHash = company.PasswordHash ?? string.Empty;
                 role = "Admin";
                 userId = company.Id;
                 name = company.Name ?? string.Empty;
-                companyId = company.Id; // Pro Admin (empresa)
-                // <<< NOVO LOG: Debug pro companyId no login
+                companyId = company.Id;
                 _logger.LogInformation($"[DEBUG Login Company] ID={company.Id}, IsActive={company.IsActive}, CompanyId in claims={companyId}, Role={role}, Email={loginEmailLower}");
             }
             else if (employee != null)
@@ -440,7 +468,7 @@ public class AuthController : ControllerBase
                 role = "Employee";
                 userId = employee.Id;
                 name = employee.Name ?? string.Empty;
-                companyId = employee.CompanyId; // Da empresa
+                companyId = employee.CompanyId;
                 _logger.LogInformation($"[DEBUG Login Employee] ID={employee.Id}, CompanyId={companyId}, Role={role}, Email={loginEmailLower}");
             }
             else if (client != null)
@@ -449,63 +477,77 @@ public class AuthController : ControllerBase
                 role = "Client";
                 userId = client.Id;
                 name = client.Name ?? string.Empty;
-                companyId = 0; // Não aplicável
+                companyId = 0;
                 _logger.LogInformation($"[DEBUG Login Client] ID={client.Id}, CompanyId={companyId}, Role={role}, Email={loginEmailLower}");
             }
+
             if (string.IsNullOrEmpty(passwordHash) || !BCrypt.Net.BCrypt.Verify(login.Password, passwordHash))
-            {
                 return Unauthorized(new ApiResponse<object> { Success = false, Message = "Senha incorreta." });
-            }
-            // Claims com custom "role" string pra jwtDecode ler decoded.role
+
             var claims = new[]
             {
                 new Claim(ClaimTypes.NameIdentifier, userId.ToString()),
                 new Claim(ClaimTypes.Email, login.Email ?? string.Empty),
-                new Claim(ClaimTypes.Role, role), // Mantém pra [Authorize(Roles)]
-                new Claim("role", role), // Custom "role" pra decoded.role no front
-                new Claim("companyId", companyId.ToString()) // Pro guard/filtragem se precisar
+                new Claim(ClaimTypes.Role, role),
+                new Claim("role", role),
+                new Claim("companyId", companyId.ToString())
             };
+
             var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
             var creds = new SigningCredentials(securityKey, SecurityAlgorithms.HmacSha256);
+
             var token = new JwtSecurityToken(
                 issuer: issuer,
                 audience: audience,
                 claims: claims,
                 expires: DateTime.Now.AddMinutes(30),
                 signingCredentials: creds);
+
             var jwtToken = new JwtSecurityTokenHandler().WriteToken(token);
-            // Response.user com companyId
-            // <<< NOVO LOG: Confirma token gerado
+
             _logger.LogInformation($"[DEBUG Login Success] Token gerado para UserId={userId}, Role={role}, CompanyId={companyId}, Expires={token.ValidTo}");
+
             return Ok(new ApiResponse<object>
             {
                 Success = true,
-                Data = new { token = jwtToken, user = new { id = userId, name, email = login.Email, role, companyId, canal = companyId } }
+                Data = new
+                {
+                    token = jwtToken,
+                    user = new
+                    {
+                        id = userId,
+                        name = name,
+                        email = login.Email ?? "",
+                        role = role,
+                        companyId = companyId,
+                        canal = companyId   // ESSA LINHA RESOLVE O ERRO NO ANGULAR
+                    }
+                }
             });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Erro ao processar login para e-mail: {Email}", login.Email);
+            _logger.LogError(ex, "Erro ao processar login para e-mail: {Email}", login?.Email);
             return StatusCode(500, new ApiResponse<object> { Success = false, Message = "Erro interno ao processar login" });
         }
     }
-    // Check if email exists (GET /auth/check-email/{email})
+
     [HttpGet("check-email/{email}")]
     public async Task<IActionResult> CheckEmailExists(string email)
     {
         try
         {
-            // <<< DEBUG: ADICIONE AQUI >>>
-            var allCompaniesEmails = await _context.Companies.Select(c => c.Email ?? "NULL").ToListAsync(); // ?? pra nulls
+            var allCompaniesEmails = await _context.Companies.Select(c => c.Email ?? "NULL").ToListAsync();
             var allClientsEmails = await _context.Clients.Select(c => c.Email ?? "NULL").ToListAsync();
             _logger.LogInformation($"[DEBUG CheckEmail] All Companies emails: [{string.Join(", ", allCompaniesEmails)}]");
             _logger.LogInformation($"[DEBUG CheckEmail] All Clients emails: [{string.Join(", ", allClientsEmails)}]");
+
             var emailNormalized = email?.Trim().ToLowerInvariant();
-            bool existsInCompanies = await _context.Companies.AnyAsync(c => !string.IsNullOrEmpty(c.Email) && c.Email.ToLower() == emailNormalized); // <<< FIX: ToLower() + null check
-            bool existsInClients = await _context.Clients.AnyAsync(c => !string.IsNullOrEmpty(c.Email) && c.Email.ToLower() == emailNormalized); // <<< FIX: ToLower() + null check
+            bool existsInCompanies = await _context.Companies.AnyAsync(c => !string.IsNullOrEmpty(c.Email) && c.Email.ToLower() == emailNormalized);
+            bool existsInClients = await _context.Clients.AnyAsync(c => !string.IsNullOrEmpty(c.Email) && c.Email.ToLower() == emailNormalized);
             var exists = existsInCompanies || existsInClients;
             _logger.LogInformation($"[DEBUG CheckEmail] Email '{email}' EXISTS: {exists} (Companies: {existsInCompanies}, Clients: {existsInClients})");
-            // <<< FIM DO DEBUG >>>
+
             return Ok(new ApiResponse<bool> { Success = true, Data = exists });
         }
         catch (Exception ex)
@@ -514,21 +556,23 @@ public class AuthController : ControllerBase
             return StatusCode(500, new ApiResponse<bool> { Success = false, Data = false });
         }
     }
-    // Resend verification email (POST /auth/resend-verification)
+
     [HttpPost("resend-verification")]
     public async Task<IActionResult> ResendVerification([FromBody] string email)
     {
         try
         {
-            if (string.IsNullOrEmpty(email)) return BadRequest(new ApiResponse<object> { Success = false, Message = "E-mail é obrigatório" });
+            if (string.IsNullOrEmpty(email)) return BadRequest(new ApiResponse<object> { Success = false, Message = "E-mail Ã© obrigatÃ³rio" });
             var emailLower = email.Trim().ToLowerInvariant();
-            var company = await _context.Companies.FirstOrDefaultAsync(c => c.Email.ToLower() == emailLower && !c.IsActive); // <<< FIX: ToLower()
-            if (company == null) return NotFound(new ApiResponse<object> { Success = false, Message = "Empresa não encontrada ou já ativa" });
+            var company = await _context.Companies.FirstOrDefaultAsync(c => c.Email.ToLower() == emailLower && !c.IsActive);
+            if (company == null) return NotFound(new ApiResponse<object> { Success = false, Message = "Empresa nÃ£o encontrada ou jÃ¡ ativa" });
+
             var frontendUrl = _config["AppSettings:FrontendBaseUrl"] ?? "https://vea-nine.vercel.app";
-            var confirmLink = $"{frontendUrl}/confirm/company/{company.Id}?token={GenerateTempToken (company.Email)}";
+            var confirmLink = $"{frontendUrl}/confirm/company/{company.Id}?token={GenerateTempToken(company.Email)}";
             var htmlBody = GenerateConfirmationHtml(confirmLink, company.Name, "empresa");
             _ = _emailService.SendConfirmationEmail(company.Email, "Confirme sua conta VEA - Veja, Explore e Agende", htmlBody);
-            return Ok(new ApiResponse<object> { Success = true, Message = "E-mail de confirmação reenviado! Verifique sua caixa de entrada." });
+
+            return Ok(new ApiResponse<object> { Success = true, Message = "E-mail de confirmaÃ§Ã£o reenviado! Verifique sua caixa de entrada." });
         }
         catch (Exception ex)
         {
@@ -536,8 +580,9 @@ public class AuthController : ControllerBase
             return StatusCode(500, new ApiResponse<object> { Success = false, Message = "Erro ao reenviar e-mail" });
         }
     }
-    private string GenerateTempToken(string email) => Convert.ToBase64String(Encoding.UTF8.GetBytes(email + " " + DateTime.Now.Ticks)); // Espaço pra split na validação
-    // Helper pra gerar HTML de confirmação (refinado: texto botão branco !important, mensagem VEA-specific, mais centralizado)
+
+    private string GenerateTempToken(string email) => Convert.ToBase64String(Encoding.UTF8.GetBytes(email + " " + DateTime.Now.Ticks));
+
     private string GenerateConfirmationHtml(string confirmLink, string name, string userType)
     {
         return $@"
@@ -546,23 +591,23 @@ public class AuthController : ControllerBase
 <head>
     <style>
         body {{ font-family: Arial, sans-serif; background-color: #f4f4f4; color: #333; line-height: 1.6; }}
-        .container {{ max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); text-align: center; }} /* Centraliza tudo */
-        .header {{ color: #DB2777; font-size: 24px; margin-bottom: 20px; }} /* Rosa VEA do PDF */
-        .button {{ background: linear-gradient(to right, #DB2777, #F472B6); color: white !important; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 20px auto; font-weight: bold; transition: opacity 0.3s; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }} /* Branco forçado, sombra pra contraste */
+        .container {{ max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); text-align: center; }}
+        .header {{ color: #DB2777; font-size: 24px; margin-bottom: 20px; }}
+        .button {{ background: linear-gradient(to right, #DB2777, #F472B6); color: white !important; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 20px auto; font-weight: bold; transition: opacity 0.3s; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }}
         .button:hover {{ opacity: 0.9; }}
-        .footer {{ color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; text-align: center; }} /* Centraliza footer */
-        .greeting {{ color: #DB2777; font-size: 18px; margin-bottom: 15px; }} /* Rosa no greeting */
-        .link-fallback {{ font-size: 14px; color: #666; text-align: center; margin: 10px 0; }} /* Centraliza link fallback */
+        .footer {{ color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; text-align: center; }}
+        .greeting {{ color: #DB2777; font-size: 18px; margin-bottom: 15px; }}
+        .link-fallback {{ font-size: 14px; color: #666; text-align: center; margin: 10px 0; }}
     </style>
 </head>
 <body>
     <div class='container'>
         <h1 class='header'>Bem-vindo ao VEA!</h1>
-        <p class='greeting'>Olá, <strong>{name}</strong>,</p>
-        <p>Obrigado por se cadastrar no VEA - Veja, Explore e Agende, o hub empresarial que otimiza agendamentos e conecta PMEs a clientes. Ative sua {userType} agora para gerenciar atendimentos automáticos, funcionários e serviços de forma intuitiva – ganhe visibilidade e reduza burocracias no seu dia a dia!</p>
+        <p class='greeting'>OlÃ¡, <strong>{name}</strong>,</p>
+        <p>Obrigado por se cadastrar no VEA - Veja, Explore e Agende, o hub empresarial que otimiza agendamentos e conecta PMEs a clientes. Ative sua {userType} agora para gerenciar atendimentos automÃ¡ticos, funcionÃ¡rios e serviÃ§os de forma intuitiva â€“ ganhe visibilidade e reduza burocracias no seu dia a dia!</p>
         <a href='{confirmLink}' class='button'>Ativar Conta VEA</a>
-        <p class='link-fallback'>Se o botão não funcionar, copie e cole este link no navegador:<br><small>{confirmLink}</small></p>
-        <p>Essa ativação expira em 24h. Qualquer dúvida, responda este email!</p>
+        <p class='link-fallback'>Se o botÃ£o nÃ£o funcionar, copie e cole este link no navegador:<br><small>{confirmLink}</small></p>
+        <p>Essa ativaÃ§Ã£o expira em 24h. Qualquer dÃºvida, responda este email!</p>
         <div class='footer'>
             <p>Atenciosamente,<br>Equipe VEA - Veja, Explore e Agende</p>
             <img src='https://via.placeholder.com/100x50/DB2777/FFFFFF?text=VEA' alt='Logo VEA' style='width: 100px; border-radius: 5px;'>
@@ -571,7 +616,7 @@ public class AuthController : ControllerBase
 </body>
 </html>";
     }
-    // Helper pra gerar HTML de invite (similar, refinado igual acima)
+
     private string GenerateInviteHtml(string inviteLink, string name)
     {
         return $@"
@@ -580,23 +625,23 @@ public class AuthController : ControllerBase
 <head>
     <style>
         body {{ font-family: Arial, sans-serif; background-color: #f4f4f4; color: #333; line-height: 1.6; }}
-        .container {{ max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); text-align: center; }} /* Centraliza tudo */
-        .header {{ color: #DB2777; font-size: 24px; margin-bottom: 20px; }} /* Rosa VEA do PDF */
-        .button {{ background: linear-gradient(to right, #DB2777, #F472B6); color: white !important; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 20px auto; font-weight: bold; transition: opacity 0.3s; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }} /* Branco forçado, sombra pra contraste */
+        .container {{ max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); text-align: center; }}
+        .header {{ color: #DB2777; font-size: 24px; margin-bottom: 20px; }}
+        .button {{ background: linear-gradient(to right, #DB2777, #F472B6); color: white !important; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 20px auto; font-weight: bold; transition: opacity 0.3s; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }}
         .button:hover {{ opacity: 0.9; }}
-        .footer {{ color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; text-align: center; }} /* Centraliza footer */
-        .greeting {{ color: #DB2777; font-size: 18px; margin-bottom: 15px; }} /* Rosa no greeting */
-        .link-fallback {{ font-size: 14px; color: #666; text-align: center; margin: 10px 0; }} /* Centraliza link fallback */
+        .footer {{ color: #666; font-size: 12px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 10px; text-align: center; }}
+        .greeting {{ color: #DB2777; font-size: 18px; margin-bottom: 15px; }}
+        .link-fallback {{ font-size: 14px; color: #666; text-align: center; margin: 10px 0; }}
     </style>
 </head>
 <body>
     <div class='container'>
         <h1 class='header'>Convite para o VEA!</h1>
-        <p class='greeting'>Olá, <strong>{name}</strong>,</p>
-        <p>Você foi convidado para a equipe no VEA - Veja, Explore e Agende, o sistema que automatiza agendamentos e centraliza a gestão de atendimentos. Ative sua conta para acessar sua agenda, serviços e o hub empresarial – facilite o dia a dia da empresa com eficiência e visibilidade!</p>
+        <p class='greeting'>OlÃ¡, <strong>{name}</strong>,</p>
+        <p>VocÃª foi convidado para a equipe no VEA - Veja, Explore e Agende, o sistema que automatiza agendamentos e centraliza a gestÃ£o de atendimentos. Ative sua conta para acessar sua agenda, serviÃ§os e o hub empresarial â€“ facilite o dia a dia da empresa com eficiÃªncia e visibilidade!</p>
         <a href='{inviteLink}' class='button'>Ativar e Criar Senha</a>
-        <p class='link-fallback'>Se o botão não funcionar, copie e cole este link no navegador:<br><small>{inviteLink}</small></p>
-        <p>Essa ativação expira em 24h. Qualquer dúvida, responda este email!</p>
+        <p class='link-fallback'>Se o botÃ£o nÃ£o funcionar, copie e cole este link no navegador:<br><small>{inviteLink}</small></p>
+        <p>Essa ativaÃ§Ã£o expira em 24h. Qualquer dÃºvida, responda este email!</p>
         <div class='footer'>
             <p>Atenciosamente,<br>Equipe VEA - Veja, Explore e Agende</p>
             <img src='https://via.placeholder.com/100x50/DB2777/FFFFFF?text=VEA' alt='Logo VEA' style='width: 100px; border-radius: 5px;'>
@@ -605,17 +650,19 @@ public class AuthController : ControllerBase
 </body>
 </html>";
     }
-    // Helper pra salvar file
+
     private async Task<string> SaveFileAsync(IFormFile file, string subfolder)
     {
-        if (file == null || file.Length == 0) throw new ArgumentException("Arquivo inválido", nameof(file));
+        if (file == null || file.Length == 0) throw new ArgumentException("Arquivo invÃ¡lido", nameof(file));
         var uploadsFolder = Path.Combine(_env.WebRootPath, "uploads", subfolder);
         if (!Directory.Exists(uploadsFolder))
             Directory.CreateDirectory(uploadsFolder);
+
         var uniqueFileName = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName ?? "");
         var filePath = Path.Combine(uploadsFolder, uniqueFileName);
         await using var stream = new FileStream(filePath, FileMode.Create);
         await file.CopyToAsync(stream);
+
         return $"/uploads/{subfolder}/{uniqueFileName}";
     }
 }
