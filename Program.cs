@@ -91,7 +91,8 @@ builder.Services.AddCors(options =>
         policy.WithOrigins(
                 "http://localhost:4200",
                 "https://localhost:4200",
-                "https://vea-nine.vercel.app"
+                "https://vea-nine.vercel.app",
+                "https://vea-ebebk185i-eumesmomatheus-projects.vercel.app"
             )
             .AllowAnyMethod()
             .AllowAnyHeader()
