@@ -383,5 +383,196 @@ namespace VEA.API.Controllers
             public int Id { get; set; }
             public string Name { get; set; } = string.Empty;
         }
+
+        // =========================================================
+        // ENDPOINTS DO PRESTADOR (EMPLOYEE) - AGENDAMENTOS
+        // =========================================================
+
+        /// <summary>
+        /// Retorna os agendamentos do dia para o prestador logado
+        /// GET /api/appointments/employee/today
+        /// </summary>
+        [HttpGet("employee/today")]
+        [Authorize(Roles = "Employee")]
+        public async Task<ActionResult<ApiResponse<EmployeeAgendaDto>>> GetEmployeeTodayAppointments()
+        {
+            var employeeId = GetEmployeeIdFromClaims();
+            if (employeeId == 0)
+                return Unauthorized(new ApiResponse<EmployeeAgendaDto> { Success = false, Message = "Funcionário não autorizado" });
+
+            var today = DateTime.Today;
+            var appointments = await GetEmployeeAppointmentsForDateRange(employeeId, today, today);
+
+            return Ok(new ApiResponse<EmployeeAgendaDto>
+            {
+                Success = true,
+                Data = new EmployeeAgendaDto
+                {
+                    Period = "today",
+                    StartDate = today,
+                    EndDate = today,
+                    TotalAppointments = appointments.Count,
+                    Appointments = appointments
+                }
+            });
+        }
+
+        /// <summary>
+        /// Retorna os agendamentos da semana para o prestador logado
+        /// GET /api/appointments/employee/week?date=2025-12-03 (opcional, default = hoje)
+        /// </summary>
+        [HttpGet("employee/week")]
+        [Authorize(Roles = "Employee")]
+        public async Task<ActionResult<ApiResponse<EmployeeAgendaDto>>> GetEmployeeWeekAppointments([FromQuery] string? date = null)
+        {
+            var employeeId = GetEmployeeIdFromClaims();
+            if (employeeId == 0)
+                return Unauthorized(new ApiResponse<EmployeeAgendaDto> { Success = false, Message = "Funcionário não autorizado" });
+
+            DateTime targetDate = DateTime.Today;
+            if (!string.IsNullOrEmpty(date) && DateTime.TryParseExact(date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDate))
+            {
+                targetDate = parsedDate;
+            }
+
+            // Calcula início e fim da semana (domingo a sábado)
+            var startOfWeek = targetDate.AddDays(-(int)targetDate.DayOfWeek);
+            var endOfWeek = startOfWeek.AddDays(6);
+
+            var appointments = await GetEmployeeAppointmentsForDateRange(employeeId, startOfWeek, endOfWeek);
+
+            return Ok(new ApiResponse<EmployeeAgendaDto>
+            {
+                Success = true,
+                Data = new EmployeeAgendaDto
+                {
+                    Period = "week",
+                    StartDate = startOfWeek,
+                    EndDate = endOfWeek,
+                    TotalAppointments = appointments.Count,
+                    Appointments = appointments
+                }
+            });
+        }
+
+        /// <summary>
+        /// Retorna os agendamentos do mês para o prestador logado
+        /// GET /api/appointments/employee/month?year=2025&month=12 (opcional, default = mês atual)
+        /// </summary>
+        [HttpGet("employee/month")]
+        [Authorize(Roles = "Employee")]
+        public async Task<ActionResult<ApiResponse<EmployeeAgendaDto>>> GetEmployeeMonthAppointments([FromQuery] int? year = null, [FromQuery] int? month = null)
+        {
+            var employeeId = GetEmployeeIdFromClaims();
+            if (employeeId == 0)
+                return Unauthorized(new ApiResponse<EmployeeAgendaDto> { Success = false, Message = "Funcionário não autorizado" });
+
+            var targetYear = year ?? DateTime.Today.Year;
+            var targetMonth = month ?? DateTime.Today.Month;
+
+            var startOfMonth = new DateTime(targetYear, targetMonth, 1);
+            var endOfMonth = startOfMonth.AddMonths(1).AddDays(-1);
+
+            var appointments = await GetEmployeeAppointmentsForDateRange(employeeId, startOfMonth, endOfMonth);
+
+            return Ok(new ApiResponse<EmployeeAgendaDto>
+            {
+                Success = true,
+                Data = new EmployeeAgendaDto
+                {
+                    Period = "month",
+                    StartDate = startOfMonth,
+                    EndDate = endOfMonth,
+                    TotalAppointments = appointments.Count,
+                    Appointments = appointments
+                }
+            });
+        }
+
+        // =========================================================
+        // HELPERS PARA EMPLOYEE
+        // =========================================================
+
+        private int GetEmployeeIdFromClaims()
+        {
+            var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ??
+                          User.FindFirstValue("sub") ??
+                          User.FindFirstValue("id");
+
+            return int.TryParse(idClaim, out var id) ? id : 0;
+        }
+
+        private async Task<List<EmployeeAppointmentDto>> GetEmployeeAppointmentsForDateRange(int employeeId, DateTime startDate, DateTime endDate)
+        {
+            var appointments = await _context.Appointments
+                .Include(a => a.Client)
+                .Where(a => a.EmployeeId == employeeId &&
+                           a.StartDateTime.Date >= startDate.Date &&
+                           a.StartDateTime.Date <= endDate.Date &&
+                           a.Status != "Cancelled")
+                .OrderBy(a => a.StartDateTime)
+                .ToListAsync();
+
+            var result = new List<EmployeeAppointmentDto>();
+
+            foreach (var a in appointments)
+            {
+                var serviceIds = string.IsNullOrWhiteSpace(a.ServicesJson)
+                    ? Array.Empty<int>()
+                    : a.ServicesJson.Split(',').Select(int.Parse).ToArray();
+
+                var services = serviceIds.Any()
+                    ? await _context.Services.Where(s => serviceIds.Contains(s.Id)).Select(s => new ServiceInfoDto { Id = s.Id, Name = s.Name ?? string.Empty, Duration = s.Duration, Price = s.Price }).ToListAsync()
+                    : new List<ServiceInfoDto>();
+
+                result.Add(new EmployeeAppointmentDto
+                {
+                    Id = a.Id,
+                    StartDateTime = a.StartDateTime,
+                    EndDateTime = a.EndDateTime ?? a.StartDateTime.AddMinutes(a.TotalDurationMinutes),
+                    Status = a.Status,
+                    ClientName = a.Client?.Name ?? "Cliente",
+                    ClientPhone = a.Client?.Phone,
+                    Services = services,
+                    TotalDurationMinutes = a.TotalDurationMinutes
+                });
+            }
+
+            return result;
+        }
+
+        // =========================================================
+        // DTOs DO PRESTADOR (EMPLOYEE)
+        // =========================================================
+
+        public class EmployeeAgendaDto
+        {
+            public string Period { get; set; } = string.Empty; // "today", "week", "month"
+            public DateTime StartDate { get; set; }
+            public DateTime EndDate { get; set; }
+            public int TotalAppointments { get; set; }
+            public List<EmployeeAppointmentDto> Appointments { get; set; } = new();
+        }
+
+        public class EmployeeAppointmentDto
+        {
+            public int Id { get; set; }
+            public DateTime StartDateTime { get; set; }
+            public DateTime EndDateTime { get; set; }
+            public string Status { get; set; } = string.Empty;
+            public string ClientName { get; set; } = string.Empty;
+            public string? ClientPhone { get; set; }
+            public List<ServiceInfoDto> Services { get; set; } = new();
+            public int TotalDurationMinutes { get; set; }
+        }
+
+        public class ServiceInfoDto
+        {
+            public int Id { get; set; }
+            public string Name { get; set; } = string.Empty;
+            public int Duration { get; set; }
+            public decimal Price { get; set; }
+        }
+
     }
 }

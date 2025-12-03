@@ -49,6 +49,47 @@ public class EmployeesController : ControllerBase
         _config = config;
     }
 
+    /// <summary>
+    /// Retorna os dados do prestador logado
+    /// GET /api/employees/me
+    /// </summary>
+    [HttpGet("me")]
+    [Authorize(Roles = "Employee")]
+    public async Task<ActionResult<ApiResponse<EmployeeProfileDto>>> GetMyProfile()
+    {
+        var employeeIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ??
+                              User.FindFirst("sub")?.Value ??
+                              User.FindFirst("id")?.Value;
+
+        if (!int.TryParse(employeeIdClaim, out var employeeId) || employeeId == 0)
+            return Unauthorized(new ApiResponse<EmployeeProfileDto> { Success = false, Message = "Funcionário não autorizado" });
+
+        var employee = await _context.Employees
+            .Include(e => e.Company)
+            .Include(e => e.Role)
+            .FirstOrDefaultAsync(e => e.Id == employeeId);
+
+        if (employee == null)
+            return NotFound(new ApiResponse<EmployeeProfileDto> { Success = false, Message = "Funcionário não encontrado" });
+
+        var profile = new EmployeeProfileDto
+        {
+            Id = employee.Id,
+            Name = employee.Name ?? string.Empty,
+            Email = employee.Email ?? string.Empty,
+            Phone = employee.Phone,
+            RoleId = employee.RoleId ?? 0,
+            RoleName = employee.Role?.Name,
+            EmailVerified = employee.EmailVerified,
+            IsActive = employee.IsActive,
+            FullPhotoUrl = BuildFullPhotoUrl(employee.PhotoUrl ?? "/uploads/employees/default-avatar.png"),
+            CompanyId = employee.CompanyId,
+            CompanyName = employee.Company?.Name
+        };
+
+        return Ok(new ApiResponse<EmployeeProfileDto> { Success = true, Data = profile });
+    }
+
     [HttpGet]
     public async Task<ActionResult<ApiResponse<List<EmployeeDto>>>> GetEmployees(int companyId)
     {
@@ -404,4 +445,20 @@ public class EmployeesController : ControllerBase
 </body>
 </html>";
     }
+}
+
+// DTO para perfil do prestador logado
+public class EmployeeProfileDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string? Phone { get; set; }
+    public int RoleId { get; set; }
+    public string? RoleName { get; set; }
+    public bool EmailVerified { get; set; }
+    public bool IsActive { get; set; }
+    public string? FullPhotoUrl { get; set; }
+    public int CompanyId { get; set; }
+    public string? CompanyName { get; set; }
 }
