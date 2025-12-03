@@ -78,7 +78,8 @@ namespace VEA.API.Controllers
                     Email = e.Email ?? string.Empty,
                     Phone = e.Phone,
                     RoleName = e.Role != null ? e.Role.Name : "Profissional",
-                    FullPhotoUrl = e.PhotoUrl
+                    FullPhotoUrl = e.PhotoUrl,
+                    EmailVerified = e.EmailVerified  // Adicionado para o frontend
                 })
                 .ToListAsync();
 
