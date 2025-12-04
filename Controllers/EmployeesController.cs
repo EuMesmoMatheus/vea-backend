@@ -33,7 +33,7 @@ public class ActivationDataDto
 
 [Route("api/[controller]")]
 [ApiController]
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "Admin,Employee")] // Permite Admin OU Employee acessar o controller
 public class EmployeesController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
@@ -54,7 +54,7 @@ public class EmployeesController : ControllerBase
     /// GET /api/employees/me
     /// </summary>
     [HttpGet("me")]
-    [Authorize(Roles = "Employee")]
+    [Authorize(Roles = "Employee,Admin")] // Permite Employee OU Admin acessar
     public async Task<ActionResult<ApiResponse<EmployeeProfileDto>>> GetMyProfile()
     {
         var employeeIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ??
@@ -91,6 +91,7 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpGet]
+    [Authorize(Roles = "Admin")] // Apenas Admin pode listar funcionários
     public async Task<ActionResult<ApiResponse<List<EmployeeDto>>>> GetEmployees(int companyId)
     {
         var employees = await _context.Employees
@@ -113,6 +114,7 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [Authorize(Roles = "Admin")] // Apenas Admin pode ver detalhes de funcionário
     public async Task<ActionResult<ApiResponse<EmployeeDto>>> GetEmployee(int id)
     {
         var employee = await _context.Employees
@@ -145,6 +147,7 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "Admin")] // Apenas Admin pode criar funcionário
     public async Task<ActionResult<ApiResponse<EmployeeDto>>> CreateEmployee(
         [FromForm] CreateEmployeeDto employeeDto,
         IFormFile? photo)
@@ -198,6 +201,7 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Roles = "Admin")] // Apenas Admin pode atualizar funcionário
     public async Task<ActionResult<ApiResponse<EmployeeDto>>> UpdateEmployee(int id, [FromForm] CreateEmployeeDto employeeDto, IFormFile? photo)
     {
         var existingEmployee = await _context.Employees
@@ -251,6 +255,7 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [Authorize(Roles = "Admin")] // Apenas Admin pode deletar funcionário
     public async Task<IActionResult> DeleteEmployee(int id)
     {
         var employee = await _context.Employees
@@ -277,6 +282,7 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpPost("{id}/verify-email")]
+    [Authorize(Roles = "Admin")] // Apenas Admin pode reenviar verificação
     public async Task<ActionResult<ApiResponse<object>>> SendVerificationEmail(int id)
     {
         var employee = await _context.Employees.FirstOrDefaultAsync(e => e.Id == id);
