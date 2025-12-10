@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Collections.Generic;
 namespace VEA.API.Models
 {
@@ -12,6 +13,7 @@ namespace VEA.API.Models
         [Required]
         public int Duration { get; set; } // in minutes
         [Required]
+        [Column(TypeName = "decimal(10,2)")]
         public decimal Price { get; set; }
         [Required]
         public int CompanyId { get; set; }
