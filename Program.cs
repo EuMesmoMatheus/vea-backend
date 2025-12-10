@@ -176,33 +176,6 @@ if (!app.Environment.IsEnvironment("Testing"))
     {
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         dbContext.Database.EnsureCreated();
-
-        // ⚠️ DROPA TODAS AS TABELAS E RECRIA DO ZERO (REMOVER APÓS USAR!)
-        try
-        {
-            Console.WriteLine("[Migration] ⚠️ DROPANDO TODAS AS TABELAS DO BANCO...");
-            dbContext.Database.ExecuteSqlRaw("SET FOREIGN_KEY_CHECKS = 0");
-            dbContext.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS Appointments");
-            dbContext.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS EmployeeBlocks");
-            dbContext.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS EmployeeService");
-            dbContext.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS Services");
-            dbContext.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS Employees");
-            dbContext.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS Clients");
-            dbContext.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS Roles");
-            dbContext.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS Companies");
-            dbContext.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS __EFMigrationsHistory");
-            dbContext.Database.ExecuteSqlRaw("SET FOREIGN_KEY_CHECKS = 1");
-            Console.WriteLine("[Migration] ✅ TODAS AS TABELAS FORAM DROPADAS!");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[Migration] Aviso ao dropar tabelas: {ex.Message}");
-        }
-
-        // Recria todas as tabelas com os tipos corretos
-        Console.WriteLine("[Migration] 🔄 Recriando todas as tabelas...");
-        dbContext.Database.EnsureCreated();
-        Console.WriteLine("[Migration] ✅ Banco de dados recriado do zero!");
     }
 }
 
