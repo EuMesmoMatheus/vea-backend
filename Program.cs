@@ -176,6 +176,20 @@ if (!app.Environment.IsEnvironment("Testing"))
     {
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         dbContext.Database.EnsureCreated();
+
+        // Migração manual: adiciona coluna TotalPrice se não existir
+        try
+        {
+            dbContext.Database.ExecuteSqlRaw(@"
+                ALTER TABLE Appointments 
+                ADD COLUMN IF NOT EXISTS TotalPrice DECIMAL(10,2) NOT NULL DEFAULT 0
+            ");
+            Console.WriteLine("[Migration] Coluna TotalPrice verificada/criada com sucesso.");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Migration] Aviso ao verificar TotalPrice: {ex.Message}");
+        }
     }
 }
 
