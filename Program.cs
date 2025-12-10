@@ -177,54 +177,32 @@ if (!app.Environment.IsEnvironment("Testing"))
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         dbContext.Database.EnsureCreated();
 
-        // ⚠️ LIMPA TODOS OS DADOS DO BANCO (REMOVER APÓS USAR!)
+        // ⚠️ DROPA TODAS AS TABELAS E RECRIA DO ZERO (REMOVER APÓS USAR!)
         try
         {
-            Console.WriteLine("[Migration] ⚠️ LIMPANDO TODOS OS DADOS DO BANCO...");
+            Console.WriteLine("[Migration] ⚠️ DROPANDO TODAS AS TABELAS DO BANCO...");
             dbContext.Database.ExecuteSqlRaw("SET FOREIGN_KEY_CHECKS = 0");
-            dbContext.Database.ExecuteSqlRaw("TRUNCATE TABLE Appointments");
-            dbContext.Database.ExecuteSqlRaw("TRUNCATE TABLE EmployeeBlocks");
-            dbContext.Database.ExecuteSqlRaw("TRUNCATE TABLE EmployeeService");
-            dbContext.Database.ExecuteSqlRaw("TRUNCATE TABLE Services");
-            dbContext.Database.ExecuteSqlRaw("TRUNCATE TABLE Employees");
-            dbContext.Database.ExecuteSqlRaw("TRUNCATE TABLE Clients");
-            dbContext.Database.ExecuteSqlRaw("TRUNCATE TABLE Roles");
-            dbContext.Database.ExecuteSqlRaw("TRUNCATE TABLE Companies");
+            dbContext.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS Appointments");
+            dbContext.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS EmployeeBlocks");
+            dbContext.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS EmployeeService");
+            dbContext.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS Services");
+            dbContext.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS Employees");
+            dbContext.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS Clients");
+            dbContext.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS Roles");
+            dbContext.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS Companies");
+            dbContext.Database.ExecuteSqlRaw("DROP TABLE IF EXISTS __EFMigrationsHistory");
             dbContext.Database.ExecuteSqlRaw("SET FOREIGN_KEY_CHECKS = 1");
-            Console.WriteLine("[Migration] ✅ TODOS OS DADOS FORAM APAGADOS!");
+            Console.WriteLine("[Migration] ✅ TODAS AS TABELAS FORAM DROPADAS!");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Migration] Aviso ao limpar dados: {ex.Message}");
+            Console.WriteLine($"[Migration] Aviso ao dropar tabelas: {ex.Message}");
         }
 
-        // Migração manual: adiciona coluna TotalPrice se não existir
-        try
-        {
-            dbContext.Database.ExecuteSqlRaw(@"
-                ALTER TABLE Appointments 
-                ADD COLUMN IF NOT EXISTS TotalPrice DECIMAL(10,2) NOT NULL DEFAULT 0
-            ");
-            Console.WriteLine("[Migration] Coluna TotalPrice verificada/criada com sucesso.");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[Migration] Aviso ao verificar TotalPrice: {ex.Message}");
-        }
-
-        // Migração manual: corrige precisão do Price na tabela Services
-        try
-        {
-            dbContext.Database.ExecuteSqlRaw(@"
-                ALTER TABLE Services 
-                MODIFY COLUMN Price DECIMAL(10,2) NOT NULL DEFAULT 0
-            ");
-            Console.WriteLine("[Migration] Coluna Services.Price corrigida para DECIMAL(10,2).");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[Migration] Aviso ao corrigir Services.Price: {ex.Message}");
-        }
+        // Recria todas as tabelas com os tipos corretos
+        Console.WriteLine("[Migration] 🔄 Recriando todas as tabelas...");
+        dbContext.Database.EnsureCreated();
+        Console.WriteLine("[Migration] ✅ Banco de dados recriado do zero!");
     }
 }
 
