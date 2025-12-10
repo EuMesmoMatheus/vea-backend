@@ -1,6 +1,7 @@
 ﻿// VEA.API/Models/Appointment.cs
 using System;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace VEA.API.Models
 {
@@ -25,5 +26,11 @@ namespace VEA.API.Models
 
         public string ServicesJson { get; set; } = string.Empty;
         [Required] public int TotalDurationMinutes { get; set; }
+
+        /// <summary>
+        /// Preço total do agendamento (soma dos serviços)
+        /// </summary>
+        [Column(TypeName = "decimal(10,2)")]
+        public decimal TotalPrice { get; set; } = 0;
     }
 }

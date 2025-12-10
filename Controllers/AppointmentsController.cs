@@ -191,21 +191,23 @@ namespace VEA.API.Controllers
 
         [HttpPost]
         [AllowAnonymous]
-        public async Task<ActionResult<ApiResponse<Appointment>>> CreateAppointment([FromBody] CreateAppointmentDto dto)
+        public async Task<ActionResult<ApiResponse<AppointmentResponseDto>>> CreateAppointment([FromBody] CreateAppointmentDto dto)
         {
             var serviceIds = dto.ServiceIds?.Length > 0 ? dto.ServiceIds : (dto.ServiceId.HasValue ? new[] { dto.ServiceId.Value } : Array.Empty<int>());
 
             if (serviceIds.Length == 0)
-                return BadRequest(new ApiResponse<Appointment> { Success = false, Message = "Selecione pelo menos um serviço" });
+                return BadRequest(new ApiResponse<AppointmentResponseDto> { Success = false, Message = "Selecione pelo menos um serviço" });
 
             var services = await _context.Services.Where(s => serviceIds.Contains(s.Id) && s.CompanyId == dto.CompanyId && s.Active).ToListAsync();
             if (services.Count != serviceIds.Length)
-                return BadRequest(new ApiResponse<Appointment> { Success = false, Message = "Serviço inválido ou inativo" });
+                return BadRequest(new ApiResponse<AppointmentResponseDto> { Success = false, Message = "Serviço inválido ou inativo" });
 
-            var totalDuration = services.Sum(s => s.Duration);
+            // Calcula duração e preço (usa valores do DTO se enviados, senão calcula)
+            var totalDuration = dto.TotalDurationMinutes ?? services.Sum(s => s.Duration);
+            var totalPrice = dto.TotalPrice ?? services.Sum(s => s.Price);
 
             if (!await IsSlotAvailable(dto.CompanyId, dto.EmployeeId, dto.StartDateTime, totalDuration))
-                return Conflict(new ApiResponse<Appointment> { Success = false, Message = "Horário já ocupado ou bloqueado" });
+                return Conflict(new ApiResponse<AppointmentResponseDto> { Success = false, Message = "Horário já ocupado ou bloqueado" });
 
             var appointment = new Appointment
             {
@@ -216,16 +218,38 @@ namespace VEA.API.Controllers
                 EndDateTime = dto.StartDateTime.AddMinutes(totalDuration),
                 Status = "Scheduled",
                 ServicesJson = string.Join(",", serviceIds),
-                TotalDurationMinutes = totalDuration
+                TotalDurationMinutes = totalDuration,
+                TotalPrice = totalPrice
             };
 
             _context.Appointments.Add(appointment);
             await _context.SaveChangesAsync();
 
-            return Created("", new ApiResponse<Appointment>
+            // Monta resposta com serviços completos
+            var response = new AppointmentResponseDto
+            {
+                Id = appointment.Id,
+                CompanyId = appointment.CompanyId,
+                EmployeeId = appointment.EmployeeId,
+                ClientId = appointment.ClientId,
+                StartDateTime = appointment.StartDateTime,
+                EndDateTime = appointment.EndDateTime ?? appointment.StartDateTime.AddMinutes(totalDuration),
+                Status = appointment.Status,
+                TotalDurationMinutes = appointment.TotalDurationMinutes,
+                TotalPrice = appointment.TotalPrice,
+                Services = services.Select(s => new ServiceInfoDto
+                {
+                    Id = s.Id,
+                    Name = s.Name ?? string.Empty,
+                    Duration = s.Duration,
+                    Price = s.Price
+                }).ToList()
+            };
+
+            return Created("", new ApiResponse<AppointmentResponseDto>
             {
                 Success = true,
-                Data = appointment,
+                Data = response,
                 Message = "Agendamento criado com sucesso!"
             });
         }
@@ -354,7 +378,13 @@ namespace VEA.API.Controllers
                 {
                     var services = await _context.Services
                         .Where(s => serviceIds.Contains(s.Id))
-                        .Select(s => new ClientServiceDto { Id = s.Id, Name = s.Name ?? string.Empty })
+                        .Select(s => new ClientServiceDto 
+                        { 
+                            Id = s.Id, 
+                            Name = s.Name ?? string.Empty,
+                            Duration = s.Duration,
+                            Price = s.Price
+                        })
                         .ToListAsync();
 
                     primaryService = services.FirstOrDefault();
@@ -369,7 +399,9 @@ namespace VEA.API.Controllers
                     Status = a.Status,
                     Employee = a.Employee != null ? new ClientEmployeeDto { Id = a.Employee.Id, Name = a.Employee.Name ?? string.Empty } : null,
                     Service = primaryService,
-                    Services = allServices
+                    Services = allServices,
+                    TotalDurationMinutes = a.TotalDurationMinutes,
+                    TotalPrice = a.TotalPrice
                 });
             }
 
@@ -393,6 +425,8 @@ namespace VEA.API.Controllers
             public ClientEmployeeDto? Employee { get; set; }
             public ClientServiceDto? Service { get; set; }
             public List<ClientServiceDto> Services { get; set; } = new();
+            public int TotalDurationMinutes { get; set; }
+            public decimal TotalPrice { get; set; }
         }
 
         public class ClientEmployeeDto
@@ -405,6 +439,8 @@ namespace VEA.API.Controllers
         {
             public int Id { get; set; }
             public string Name { get; set; } = string.Empty;
+            public int Duration { get; set; }
+            public decimal Price { get; set; }
         }
 
         // =========================================================
@@ -557,7 +593,8 @@ namespace VEA.API.Controllers
                     ClientName = a.Client?.Name ?? "Cliente",
                     ClientPhone = a.Client?.Phone,
                     Services = services,
-                    TotalDurationMinutes = a.TotalDurationMinutes
+                    TotalDurationMinutes = a.TotalDurationMinutes,
+                    TotalPrice = a.TotalPrice
                 });
             }
 
@@ -587,6 +624,7 @@ namespace VEA.API.Controllers
             public string? ClientPhone { get; set; }
             public List<ServiceInfoDto> Services { get; set; } = new();
             public int TotalDurationMinutes { get; set; }
+            public decimal TotalPrice { get; set; }
         }
 
         public class ServiceInfoDto
@@ -595,6 +633,24 @@ namespace VEA.API.Controllers
             public string Name { get; set; } = string.Empty;
             public int Duration { get; set; }
             public decimal Price { get; set; }
+        }
+
+        // =========================================================
+        // DTO DE RESPOSTA PARA CRIAÇÃO DE AGENDAMENTO
+        // =========================================================
+
+        public class AppointmentResponseDto
+        {
+            public int Id { get; set; }
+            public int CompanyId { get; set; }
+            public int EmployeeId { get; set; }
+            public int ClientId { get; set; }
+            public DateTime StartDateTime { get; set; }
+            public DateTime EndDateTime { get; set; }
+            public string Status { get; set; } = string.Empty;
+            public int TotalDurationMinutes { get; set; }
+            public decimal TotalPrice { get; set; }
+            public List<ServiceInfoDto> Services { get; set; } = new();
         }
 
     }

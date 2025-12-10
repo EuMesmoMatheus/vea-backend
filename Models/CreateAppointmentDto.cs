@@ -26,7 +26,14 @@ namespace VEA.API.Models.Dtos
         // Continua nullable pra permitir agendamento sem login (guest)
         public int? ClientId { get; set; }
 
-        // Opcional no futuro
-        // public string? Notes { get; set; }
+        /// <summary>
+        /// Preço total (opcional - se não enviado, será calculado pelo backend)
+        /// </summary>
+        public decimal? TotalPrice { get; set; }
+
+        /// <summary>
+        /// Duração total em minutos (opcional - se não enviado, será calculado pelo backend)
+        /// </summary>
+        public int? TotalDurationMinutes { get; set; }
     }
 }
