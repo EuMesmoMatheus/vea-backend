@@ -278,8 +278,31 @@ namespace VEA.API.Controllers
             if (appointment == null)
                 return NotFound(new ApiResponse<Appointment> { Success = false, Message = "Agendamento não encontrado" });
 
+            // Pega role e IDs do usuário logado
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value ?? User.FindFirst("role")?.Value ?? "";
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
             var userCompanyId = int.Parse(User.FindFirst("companyId")?.Value ?? "0");
-            if (appointment.CompanyId != userCompanyId)
+
+            // Verifica permissão baseada no role
+            bool canCancel = false;
+
+            if (userRole == "Client")
+            {
+                // Cliente só pode cancelar seus próprios agendamentos
+                canCancel = appointment.ClientId == userId;
+            }
+            else if (userRole == "Employee")
+            {
+                // Funcionário só pode cancelar agendamentos da sua empresa
+                canCancel = appointment.CompanyId == userCompanyId;
+            }
+            else if (userRole == "Admin")
+            {
+                // Admin só pode cancelar agendamentos da sua empresa
+                canCancel = appointment.CompanyId == userCompanyId;
+            }
+
+            if (!canCancel)
                 return Forbid();
 
             appointment.Status = "Cancelled";
